@@ -1,0 +1,27 @@
+Name:                yarr-image-io
+Version:             0.8.2
+Synopsis:            Image IO for yarr library
+License:             MIT
+License-file:        LICENSE
+Author:              Don Stewart, Raphael Javaux, Roman Leventov
+Maintainer:          Roman Leventov <leventov@ya.ru>
+Bug-reports:         https://github.com/leventov/yarr/issues
+Category:            Data Structures, Graphics
+Build-type:          Simple
+Cabal-version:       >= 1.8
+
+Library
+    build-depends:
+        base == 4.6.*,
+        yarr == 0.8.*,
+        transformers >= 0.2 && < 0.4
+
+    extra-libraries: IL
+
+    extensions:
+        GeneralizedNewtypeDeriving,
+        ForeignFunctionInterface,
+        CPP
+
+    exposed-modules:
+        Data.Yarr.IO.Image
