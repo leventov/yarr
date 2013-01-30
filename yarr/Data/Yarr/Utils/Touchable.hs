@@ -1,6 +1,3 @@
-{-# LANGUAGE
-    FlexibleInstances, UndecidableInstances,
-    MagicHash, UnboxedTuples, CPP #-}
 
 module Data.Yarr.Utils.Touchable where
 

@@ -1,8 +1,3 @@
-{-# LANGUAGE
-    TypeFamilies, MultiParamTypeClasses, FlexibleContexts,
-    FlexibleInstances, 
-    OverlappingInstances, FunctionalDependencies, BangPatterns,
-    RankNTypes, ScopedTypeVariables #-}
 
 module Data.Yarr.Utils.FixedVector (
     module Data.Vector.Fixed,

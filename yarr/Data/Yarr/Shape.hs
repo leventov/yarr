@@ -1,8 +1,3 @@
-{-# LANGUAGE
-    TypeFamilies, FlexibleContexts, FlexibleInstances,
-    TypeSynonymInstances,
-    RankNTypes, ScopedTypeVariables, InstanceSigs,
-    MagicHash, BangPatterns #-}
 
 module Data.Yarr.Shape where
 

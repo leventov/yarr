@@ -1,7 +1,3 @@
-{-# LANGUAGE BangPatterns, FlexibleInstances,
-    MultiParamTypeClasses, FlexibleContexts,
-    TypeFamilies, UndecidableInstances, RankNTypes,
-    ScopedTypeVariables, IncoherentInstances #-}
 
 module Data.Yarr.Repr.Separate where
 

@@ -1,8 +1,3 @@
-{-# LANGUAGE
-    BangPatterns, FlexibleInstances,
-    MultiParamTypeClasses, FlexibleContexts,
-    TypeFamilies, UndecidableInstances, RankNTypes,
-    ScopedTypeVariables, IncoherentInstances #-}
 
 module Data.Yarr.Repr.Foreign where
 
@@ -131,3 +126,12 @@ instance (Shape sh, Storable e) => UTarget FS sh e where
 
 instance (Shape sh, Vector v e, Storable e) => UVecTarget F sh FS v e
 
+
+toForeignPtr :: URegular F sh a => UArray F sh a -> ForeignPtr a
+{-# INLINE toForeignPtr #-}
+toForeignPtr (ForeignArray _ fptr _) = fptr
+
+unsafeFromForeignPtr :: Shape sh => sh -> ForeignPtr a -> IO (UArray F sh a)
+{-# INLINE unsafeFromForeignPtr #-}
+unsafeFromForeignPtr sh fptr =
+    withForeignPtr fptr (\ptr -> return $ ForeignArray sh fptr ptr)

@@ -1,8 +1,3 @@
-{-# LANGUAGE
-    TypeFamilies, MultiParamTypeClasses, FlexibleContexts,
-    FlexibleInstances, UndecidableInstances,
-    OverlappingInstances, FunctionalDependencies,
-    GeneralizedNewtypeDeriving, RankNTypes, ScopedTypeVariables #-}
 
 module Data.Yarr.Base (
     module Control.DeepSeq,

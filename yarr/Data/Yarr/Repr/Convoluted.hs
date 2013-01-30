@@ -1,8 +1,3 @@
-{-# LANGUAGE
-    TypeFamilies, MultiParamTypeClasses, FlexibleContexts,
-    FlexibleInstances, UndecidableInstances,
-    OverlappingInstances, FunctionalDependencies, BangPatterns,
-    RankNTypes, ScopedTypeVariables, TypeOperators #-}
 
 module Data.Yarr.Repr.Convoluted where
 
