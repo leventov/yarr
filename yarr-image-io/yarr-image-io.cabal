@@ -13,8 +13,7 @@ Cabal-version:       >= 1.8
 Library
     build-depends:
         base == 4.6.*,
-        yarr == 0.8.*,
-        transformers >= 0.2 && < 0.4
+        yarr == 0.8.*
 
     extra-libraries: IL
 
