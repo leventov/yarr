@@ -71,6 +71,15 @@ computeElemsP
 computeElemsP = safeCompute dLoadElemsP
 
 
+computeElemsS
+    :: (UVecSource r sh slr v1 a,
+        Manifest mr sh (v2 a), UVecTarget mr sh mslr v2 a,
+        Dim v1 ~ Dim v2)
+    => (UArray r sh (v1 a)) -> IO (UArray mr sh (v2 a))
+{-# INLINE computeElemsS #-}
+computeElemsS = safeCompute dLoadElemsS
+
+
 traverse
     :: (USource r sh a, Shape sh')
     => (sh -> sh')
@@ -90,11 +99,21 @@ zipElems
 {-# INLINE zipElems #-}
 zipElems fn arr = dmap (\v -> inspect v (Fun fn)) arr
 
-
+-- Injective vector type
 mapElems
-    :: (UVecRegular r sh slr v a, DefaultFusion slr fslr sh a b)
+    :: (UVecRegular r sh slr v a, DefaultFusion slr fslr sh a b,
+        Vector v b)
     => (a -> b)
     -> UArray r sh (v a)
-    -> UArray (SE fslr) sh (VecList (Dim v) b)
+    -> UArray (SE fslr) sh (v b)
 {-# INLINE mapElems #-}
 mapElems f = dmapElems (V.replicate f)
+
+mapElems'
+    :: (UVecRegular r sh slr v a, DefaultFusion slr fslr sh a b,
+        Vector v2 b, Dim v ~ Dim v2)
+    => (a -> b)
+    -> UArray r sh (v a)
+    -> UArray (SE fslr) sh (v2 b)
+{-# INLINE mapElems' #-}
+mapElems' f = dmapElems (V.replicate f)

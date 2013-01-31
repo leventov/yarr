@@ -3,16 +3,15 @@ module Data.Yarr.Utils.Fork where
 
 import Prelude as P
 
-import qualified Control.Concurrent.ParallelIO.Global as Global
-
 import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V hiding (generate)
+import Data.Yarr.Utils.Parallel as Par
 
 
 parallel_ :: Shape sh => Int -> (sh -> sh -> IO a) -> sh -> sh -> IO ()
 {-# INLINE parallel_ #-}
 parallel_ threads rangeLoad start end =
-    Global.parallel_ $ fork threads start end rangeLoad
+    Par.parallel_ $ fork threads start end rangeLoad
 
 parallelElems_
     :: (Shape sh, Arity n)
@@ -22,7 +21,7 @@ parallelElems_
     -> IO ()
 {-# INLINE parallelElems_ #-}
 parallelElems_ threads rangeLoads start end =
-    Global.parallel_ $ forkElemsOnce threads start end rangeLoads
+    Par.parallel_ $ forkElemsOnce threads start end rangeLoads
 
 fork
     :: Shape sh

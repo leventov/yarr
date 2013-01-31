@@ -50,7 +50,6 @@ instance (Shape sh, Vector v e) => UVecRegular D sh D v e where
     {-# INLINE elems #-}
 
 instance (Shape sh, Vector v e) => UVecSource D sh D v e
-    
 
 instance USource r sh a => Fusion r D sh a b where
     fmapM f arr =

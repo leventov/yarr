@@ -42,10 +42,9 @@ instance (USource r sh e, Vector v e) => USource (SE r) sh (v e) where
     {-# INLINE index #-}
     {-# INLINE linearIndex #-}
 
-instance (USource r sh e, Arity n) => UVecSource (SE r) sh r (VecList n) e
+instance (USource r sh e, Vector v e) => DefaultFusion (SE r) D sh (v e) b
 
-instance (USource r sh e, Arity n) => DefaultFusion (SE r) D sh (VecList n e) b
-
+instance (Shape sh, Vector v e) => UVecSource (SE D) sh D v e
 
 
 fmapElems
@@ -161,3 +160,20 @@ fromElems elems =
     in if not $ all (== sh0) shapes
             then error "Separate Repr: all elems must be of the same extent"
             else Separate sh0 elems
+
+mapSeparate
+    :: (USource r sh a, Vector v a, USource r2 sh b, Vector v b)
+    => (UArray r sh a -> UArray r2 sh b)
+    -> UArray (SE r) sh (v a)
+    -> UArray (SE r2) sh (v b)
+{-# INLINE mapSeparate #-}
+mapSeparate = mapSeparate'
+
+mapSeparate'
+    :: (USource r sh a, Vector v a, USource r2 sh b, Vector v2 b,
+        Dim v ~ Dim v2)
+    => (UArray r sh a -> UArray r2 sh b)
+    -> UArray (SE r) sh (v a)
+    -> UArray (SE r2) sh (v2 b)
+{-# INLINE mapSeparate' #-}
+mapSeparate' f = fromElems . V.map f . elems

@@ -8,6 +8,7 @@ import Control.DeepSeq
 
 import Data.Yarr.Utils.FixedVector as V
 import Data.Yarr.Utils.Touchable
+import Data.Yarr.Utils.Split
 
 
 -- Can't reuse Dim from fixed-vector,
@@ -17,10 +18,20 @@ type family Rank sh
 class (Eq sh, Show sh, NFData sh, Arity (Rank sh)) => Shape sh where
     zero :: sh
     size :: sh -> Int
+    
     fromIndex :: sh -> Int -> sh
     toIndex :: sh -> sh -> Int
+    
     intersect :: [sh] -> sh
     complement :: [sh] -> sh
+    intersectBlocks :: [(sh, sh)] -> (sh, sh)
+    intersectBlocks blocks =
+        let (ss, es) = unzip blocks
+        in (complement ss, intersect es)
+
+    blockSize :: (sh, sh) -> Int
+    insideBlock :: (sh, sh) -> sh -> Bool
+
     makeChunkRange :: Int -> sh -> sh -> (Int -> (sh, sh))
 
     fill
@@ -46,38 +57,13 @@ class (Eq sh, Show sh, NFData sh, Arity (Rank sh)) => Shape sh where
         -> sh -> sh           -- start, end
         -> IO ()
 
+    {-# INLINE intersectBlocks #-}
     {-# INLINE fill #-}
     {-# INLINE dUnrolledFill #-}
 
 
 class Shape sh => BlockShape sh where
-    blockSize :: (sh, sh) -> Int
-
-    insideBlock :: (sh, sh) -> sh -> Bool
-
-    intersectBlocks :: [(sh, sh)] -> (sh, sh)
-    intersectBlocks blocks =
-        let (ss, es) = unzip blocks
-        in (complement ss, intersect es)
-    
     clipBlock :: (sh, sh) -> (sh, sh) -> [(sh, sh)]
-
-    {-# INLINE intersectBlocks #-}
-
-
-makeSplitIndex
-    :: Int
-    -> Int -> Int
-    -> (Int -> Int)
-{-# INLINE makeSplitIndex #-}
-makeSplitIndex chunks start end =
-    let !len = end - start
-    in if len < chunks
-            then \c -> start + (max c len)
-            else let (chunkLen, chunkLeftover) = len `quotRem` chunks
-                 in \c -> if c < chunkLeftover
-                        then start + c * (chunkLen + 1)
-                        else start + c * chunkLen + chunkLeftover
 
 
 
@@ -92,6 +78,9 @@ instance Shape Dim1 where
     toIndex _ i = i
     intersect = P.minimum
     complement = P.maximum
+
+    blockSize (s, e) = e - s
+    insideBlock (s, e) i = i >= s && i < e
 
     makeChunkRange chunks start end =
         let {-# INLINE split #-}
@@ -113,8 +102,11 @@ instance Shape Dim1 where
     {-# INLINE toIndex #-}
     {-# INLINE intersect #-}
     {-# INLINE complement #-}
+    {-# INLINE blockSize #-}
+    {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
     {-# INLINE unrolledFill #-}
+
 
 unrolledFill#
     :: forall a uf. Arity uf
@@ -152,17 +144,12 @@ unrolledFill# unrollFactor tch get write start# end# =
 
 
 instance BlockShape Dim1 where
-    blockSize (s, e) = e - s
-    insideBlock (s, e) i = i >= s && i < e
-
     clipBlock outer@(os, oe) inner =
         let intersection@(is, ie) = intersectBlocks [inner, outer]
         in if blockSize intersection <= 0
                 then [outer]
                 else [(os, is), (ie, oe)]
 
-    {-# INLINE blockSize #-}
-    {-# INLINE insideBlock #-}
     {-# INLINE clipBlock #-}
 
 
@@ -184,6 +171,11 @@ instance Shape Dim2 where
     complement shapes =
         let (hs, ws) = unzip shapes
         in (P.maximum hs, P.maximum ws)
+
+    blockSize ((sy, sx), (ey, ex)) = (ey - sy) * (ex - sx)
+
+    insideBlock ((sy, sx), (ey, ex)) (iy, ix) =
+        (iy >= sy && iy < ey) && (ix >= sx && ix < ex)
 
     makeChunkRange chunks (sy, sx) (ey, ex) =
         let {-# INLINE range #-}
@@ -208,16 +200,13 @@ instance Shape Dim2 where
     {-# INLINE toIndex #-}
     {-# INLINE intersect #-}
     {-# INLINE complement #-}
+    {-# INLINE blockSize #-}
+    {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
     {-# INLINE unrolledFill #-}
 
 
 instance BlockShape Dim2 where
-    blockSize ((sy, sx), (ey, ex)) = (ey - sy) * (ex - sx)
-
-    insideBlock ((sy, sx), (ey, ex)) (iy, ix) =
-        (iy >= sy && iy < ey) && (ix >= sx && ix < ex)
-
     clipBlock outer@((osy, osx), (oey, oex)) inner =
         let intersection@((isy, isx), (iey, iex)) =
                 intersectBlocks [inner, outer]
@@ -228,8 +217,6 @@ instance BlockShape Dim2 where
                       ((iey, osx), (oey, iex)),
                       ((osy, osx), (iey, isx))]
 
-    {-# INLINE blockSize #-}
-    {-# INLINE insideBlock #-}
     {-# INLINE clipBlock #-}
 
 
@@ -306,6 +293,14 @@ instance Shape Dim3 where
         let (ds, hs, ws) = unzip3 shapes
         in (P.maximum ds, P.maximum hs, P.maximum ws)
 
+    blockSize ((sz, sy, sx), (ez, ey, ex)) =
+        (ez - sz) * (ey - sy) * (ex - sx)
+
+    insideBlock ((sz, sy, sx), (ez, ey, ex)) (iz, iy, ix) =
+        (iz >= sz && iz < ez) &&
+        (iy >= sy && iy < ey) &&
+        (ix >= sx && ix < ex)
+
     makeChunkRange chunks (sz, sy, sx) (ez, ey, ex) =
         let {-# INLINE range #-}
             range = makeChunkRange chunks sz ez
@@ -330,5 +325,7 @@ instance Shape Dim3 where
     {-# INLINE toIndex #-}
     {-# INLINE intersect #-}
     {-# INLINE complement #-}
+    {-# INLINE blockSize #-}
+    {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
     {-# INLINE unrolledFill #-}

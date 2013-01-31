@@ -7,6 +7,7 @@ import Foreign.Marshal.Alloc
 
 import Data.Yarr.Base as B
 import Data.Yarr.Repr.Delayed
+import Data.Yarr.Repr.Separate
 import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
 
@@ -104,6 +105,8 @@ instance (Shape sh, Vector v e, Storable e) => UVecRegular F sh FS v e where
     {-# INLINE elems #-}
 
 instance (Shape sh, Vector v e, Storable e) => UVecSource F sh FS v e
+
+instance (Shape sh, Vector v e, Storable e) => UVecSource (SE F) sh F v e
 
 
 instance (Shape sh, Storable a) => UTarget F sh a where

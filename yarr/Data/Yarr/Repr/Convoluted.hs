@@ -3,16 +3,17 @@ module Data.Yarr.Repr.Convoluted where
 
 import Prelude as P
 import Control.Monad
-import Data.List.Split
 import GHC.Conc
-import qualified Control.Concurrent.ParallelIO.Global as Global
 
 import Data.Yarr.Base as B
+import Data.Yarr.Shape as S
 import Data.Yarr.Repr.Delayed
-import Data.Yarr.Shape
+import Data.Yarr.Repr.Separate
 import Data.Yarr.Utils.FixedVector as V
-import Data.Yarr.Utils.Fork
+import Data.Yarr.Utils.Fork as Fork
 import Data.Yarr.Utils.Touchable as T
+import Data.Yarr.Utils.Parallel as Par
+import Data.Yarr.Utils.Split
 
 
 data CV
@@ -20,20 +21,21 @@ data CV
 instance Shape sh => URegular CV sh a where
 
     data UArray CV sh a =
-        Convoluted
-            !sh          -- Extent
-            (IO ())      -- Touch
-            (sh -> IO a) -- Border get
-            !(sh, sh)    -- Center block
-            (sh -> IO a) -- Center get
+        Convoluted {
+            getExtent :: !sh,
+            getTouch :: (IO ()),
+            borderGet :: (sh -> IO a),
+            center :: !(sh, sh),
+            centerGet :: (sh -> IO a)}
 
-    extent (Convoluted sh _ _ _ _) = sh
+    extent = getExtent
     isReshaped _ = True
-    touch (Convoluted _ tch _ _ _) = tch
+    touch = getTouch
 
     {-# INLINE extent #-}
     {-# INLINE isReshaped #-}
     {-# INLINE touch #-}
+
 
 instance Shape sh => NFData (UArray CV sh a) where
     rnf (Convoluted sh tch bget center cget) =
@@ -42,18 +44,19 @@ instance Shape sh => NFData (UArray CV sh a) where
 
 
 
-instance Touchable a => USource CV Dim2 a where
+instance USource CV Dim2 a where
     index (Convoluted _ _ bget center cget) sh =
         if insideBlock center sh
             then cget sh
             else bget sh
 
-    rangeLoadP threads = dim2RangeLoadP threads (dim2BlockFill n2 n2 T.touch)
-    rangeLoadS = dim2RangeLoadS (dim2BlockFill n2 n2 T.touch)
+    rangeLoadP threads = dim2RangeLoadP threads dUnrolledFill
+    rangeLoadS = dim2RangeLoadS dUnrolledFill
 
     {-# INLINE index #-}
     {-# INLINE rangeLoadP #-}
     {-# INLINE rangeLoadS #-}
+
 
 {-# INLINE dim2RangeLoadP #-}
 dim2RangeLoadP
@@ -70,28 +73,25 @@ dim2RangeLoadP
         threadWorks =
             if blockSize loadCenter <= 0
 
-                then fork threads start end(dUnrolledFill bget wr)
+                then fork threads start end (S.fill bget wr)
                 
                 else
                     let centerWorks = fork threads cs ce (blockFill cget wr)
 
                         shavings = clipBlock loadRange loadCenter
-                        bounds = filter ((> 0) . blockSize) shavings
-                        !boundsCount = P.length bounds
-                        !boundsPerThread = (boundsCount `quot` threads) + 1
-
-                        threadBounds = chunksOf boundsPerThread bounds
+                        borders = filter ((> 0) . blockSize) shavings
+                        threadBorders = evenChunks borders threads
 
                         {-# INLINE threadWork #-}
-                        threadWork centerWork bounds = do
+                        threadWork centerWork borders = do
                             centerWork
                             P.mapM_
-                                (\(bs, be) -> dUnrolledFill bget wr bs be)
-                                bounds
+                                (\(bs, be) -> S.fill bget wr bs be)
+                                borders
 
-                    in P.zipWith threadWork centerWorks threadBounds
+                    in P.zipWith threadWork centerWorks threadBorders
                                     
-    in Global.parallel_ threadWorks
+    in Par.parallel_ threadWorks
 
 
 {-# INLINE dim2RangeLoadS #-}
@@ -109,6 +109,53 @@ dim2RangeLoadS blockFill arr@(Convoluted _ _ bget center cget) tarr start end =
 
 
 
+instance Vector v e => UVecSource (SE CV) Dim2 CV v e where
+    rangeLoadElemsP threads =
+        dim2RangeLoadElemsP threads dUnrolledFill
+    {-# INLINE rangeLoadElemsP #-}
+
+
+{-# INLINE dim2RangeLoadElemsP #-}
+dim2RangeLoadElemsP threads blockFill separateArr tarr start end =
+    let convolutedElems = elems separateArr
+
+        loadRange = (start, end)
+        centers = V.map center convolutedElems
+        loadCenters = V.map (\c -> intersectBlocks [loadRange, c]) centers
+
+        writes = V.map write (elems tarr)
+        eachElem f = V.zipWith3 f convolutedElems loadCenters writes
+
+
+        {-# INLINE centerWorks #-}
+        centerWorks sl (cs, ce) wr =
+            fork threads cs ce (blockFill (centerGet sl) wr)
+
+        allCenterWorks = V.foldl (++) [] (eachElem centerWorks)
+
+
+        {-# INLINE borderWorks #-}
+        borderWorks sl loadCenter wr =
+            let shavings = clipBlock loadRange loadCenter
+                borders = filter ((> 0) . blockSize) shavings
+            in P.map (\(bs, be) -> S.fill (borderGet sl) wr bs be) borders
+
+        allBorders = V.foldl (++) [] (eachElem borderWorks)
+
+        threadCenterWorks = evenChunks allCenterWorks threads
+        threadBorderWorks = evenChunks allBorders threads
+
+        {-# INLINE threadWork #-}
+        threadWork centerWorks borderWorks = do
+            P.sequence_ centerWorks
+            P.sequence_ borderWorks
+
+        threadWorks = P.zipWith threadWork threadCenterWorks threadBorderWorks
+
+    in Par.parallel_ threadWorks
+
+
+
 instance (USource CV sh a, USource CV sh b, BlockShape sh) =>
         Fusion CV CV sh a b where
     fmapM f (Convoluted sh tch bget center cget) =
@@ -116,27 +163,26 @@ instance (USource CV sh a, USource CV sh b, BlockShape sh) =>
 
     fzipM fun arrs =
         let shapes = toList $ V.map extent arrs
-            centers =
-                toList $ V.map (\(Convoluted _ _ _ center _) -> center) arrs
-
             sh = intersect shapes
-            center = intersectBlocks centers
+
+            centers = toList $ V.map center arrs
+            ctr = intersectBlocks centers
 
             tch = V.mapM_ B.touch arrs
 
-            bgets = V.map (\(Convoluted _ _ bget _ _) -> bget) arrs
+            bgets = V.map borderGet arrs
             {-# INLINE bget #-}
             bget sh = do
                 v <- V.mapM ($ sh) bgets
                 inspect v fun
 
-            cgets = V.map (\(Convoluted _ _ _ _ cget) -> cget) arrs
+            cgets = V.map centerGet arrs
             {-# INLINE cget #-}
             cget sh = do
                 v <- V.mapM ($ sh) cgets
                 inspect v fun
 
-        in Convoluted sh tch bget center cget
+        in Convoluted sh tch bget ctr cget
 
     {-# INLINE fmapM #-}
     {-# INLINE fzipM #-}
@@ -157,18 +203,18 @@ instance StencilOffsets N2 Z N1
 instance (StencilOffsets (S n0) s0 e0) =>
         StencilOffsets (S (S (S n0))) (S s0) (S e0)
 
-convolveWithStencil
+dim2ConvolveWithStaticStencil
     :: forall sx sox eox sy soy eoy r a b c d.
        (StencilOffsets sx sox eox, StencilOffsets sy soy eoy,
-        USource r Dim2 a, Touchable c)
+        USource r Dim2 a)
     => sx -> sy                  -- Size of stencil
     -> VecList sy (VecList sx b) -- Stencil values
     -> (c -> a -> b -> c)        -- Generalized reduce function
     -> c                         -- Reduce zero
     -> UArray r Dim2 a           -- Source
     -> UArray CV Dim2 c
-{-# INLINE convolveWithStencil #-}
-convolveWithStencil _ _ stencil reduce z arr =
+{-# INLINE dim2ConvolveWithStaticStencil #-}
+dim2ConvolveWithStaticStencil _ _ stencil reduce z arr =
     let !startOffX = arity (undefined :: sox)
         !endOffX = arity (undefined :: eox)
         
@@ -227,13 +273,3 @@ convolveWithStencil _ _ stencil reduce z arr =
         br = (shY - endOffY, shX - endOffX)
 
     in Convoluted sh (B.touch arr) bget (tl, br) cget
-
-
-
-
-
-
-
-
-
-
