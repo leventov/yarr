@@ -18,7 +18,7 @@ import Data.Yarr.Utils.Split
 
 data CV
 
-instance Shape sh => URegular CV sh a where
+instance Shape sh => Regular CV sh a where
 
     data UArray CV sh a =
         Convoluted {
@@ -29,11 +29,11 @@ instance Shape sh => URegular CV sh a where
             centerGet :: (sh -> IO a)}
 
     extent = getExtent
-    isReshaped _ = True
+    shapeIndexingPreferred _ = True
     touch = getTouch
 
     {-# INLINE extent #-}
-    {-# INLINE isReshaped #-}
+    {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}
 
 
@@ -50,7 +50,7 @@ instance USource CV Dim2 a where
             then cget sh
             else bget sh
 
-    rangeLoadP threads = dim2RangeLoadP threads dUnrolledFill
+    rangeLoadP threads = rangeLoadConvolutedP threads dUnrolledFill
     rangeLoadS = dim2RangeLoadS dUnrolledFill
 
     {-# INLINE index #-}
@@ -58,8 +58,8 @@ instance USource CV Dim2 a where
     {-# INLINE rangeLoadS #-}
 
 
-{-# INLINE dim2RangeLoadP #-}
-dim2RangeLoadP
+{-# INLINE rangeLoadConvolutedP #-}
+rangeLoadConvolutedP
         threads
         blockFill
         arr@(Convoluted _ _ bget center cget) tarr
@@ -110,21 +110,20 @@ dim2RangeLoadS blockFill arr@(Convoluted _ _ bget center cget) tarr start end =
 
 
 instance Vector v e => UVecSource (SE CV) Dim2 CV v e where
-    rangeLoadElemsP threads =
-        dim2RangeLoadElemsP threads dUnrolledFill
-    {-# INLINE rangeLoadElemsP #-}
+    rangeLoadSlicesP threads = rangeLoadConvolutedSlicesP threads dUnrolledFill
+    {-# INLINE rangeLoadSlicesP #-}
 
 
-{-# INLINE dim2RangeLoadElemsP #-}
-dim2RangeLoadElemsP threads blockFill separateArr tarr start end =
-    let convolutedElems = elems separateArr
+{-# INLINE rangeLoadConvolutedSlicesP #-}
+rangeLoadConvolutedSlicesP threads blockFill separateArr tarr start end =
+    let convolutedSlices = slices separateArr
 
         loadRange = (start, end)
-        centers = V.map center convolutedElems
+        centers = V.map center convolutedSlices
         loadCenters = V.map (\c -> intersectBlocks [loadRange, c]) centers
 
-        writes = V.map write (elems tarr)
-        eachElem f = V.zipWith3 f convolutedElems loadCenters writes
+        writes = V.map write (slices tarr)
+        eachElem f = V.zipWith3 f convolutedSlices loadCenters writes
 
 
         {-# INLINE centerWorks #-}
@@ -260,7 +259,7 @@ dim2ConvolveWithStaticStencil _ _ stencil reduce z arr =
                 stencil
 
         {-# INLINE cget #-}
-        cget = if isReshaped arr
+        cget = if shapeIndexingPreferred arr
                     then sget (index arr)
                     else slget
         

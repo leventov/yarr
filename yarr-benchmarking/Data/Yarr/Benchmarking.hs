@@ -15,7 +15,7 @@ import Data.Yarr.Utils.FixedVector as V
 
 data B r
 
-instance URegular r sh a => URegular (B r) sh a where
+instance Regular r sh a => Regular (B r) sh a where
 
     data UArray (B r) sh a =
         TimeIt {
@@ -24,11 +24,11 @@ instance URegular r sh a => URegular (B r) sh a where
             dontTime :: UArray r sh a}
     
     extent (TimeIt _ _ arr) = extent arr
-    isReshaped (TimeIt _ _ arr) = isReshaped arr
+    shapeIndexingPreferred (TimeIt _ _ arr) = shapeIndexingPreferred arr
     touch (TimeIt _ _ arr) = touch arr
     
     {-# INLINE extent #-}
-    {-# INLINE isReshaped #-}
+    {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}
 
 dTimeIt :: String -> UArray r sh a -> UArray (B r) sh a
@@ -79,54 +79,54 @@ instance USource r sh a => USource (B r) sh a where
     {-# INLINE rangeLoadS #-}
 
 
-instance UVecRegular r sh rsl v e => UVecRegular (B r) sh rsl v e where
-    elems (TimeIt _ _ arr) = elems arr
-    {-# INLINE elems #-}
+instance VecRegular r sh rsl v e => VecRegular (B r) sh rsl v e where
+    slices (TimeIt _ _ arr) = slices arr
+    {-# INLINE slices #-}
 
 
 instance UVecSource r sh slr v e => UVecSource (B r) sh slr v e where
 
-    linearLoadElemsP threads (TimeIt label repeats arr) tarr =
+    linearLoadSlicesP threads (TimeIt label repeats arr) tarr =
         genericLoad
             (parallelLabel threads label) repeats
-            (linearLoadElemsP threads)
+            (linearLoadSlicesP threads)
             0 (size (extent arr))
             arr tarr
 
-    rangeLoadElemsP threads (TimeIt label repeats arr) tarr start end =
+    rangeLoadSlicesP threads (TimeIt label repeats arr) tarr start end =
         genericLoad
             (parallelLabel threads label) repeats
-            (\arr tarr -> rangeLoadElemsP threads arr tarr start end)
+            (\arr tarr -> rangeLoadSlicesP threads arr tarr start end)
             start end
             arr tarr
 
-    linearLoadElemsS arr tarr =
-        genericLoadElemsS arr tarr linearLoadS 0 (size (extent arr))
+    linearLoadSlicesS arr tarr =
+        genericLoadSlicesS arr tarr linearLoadS 0 (size (extent arr))
 
-    rangeLoadElemsS arr tarr start end =
-        genericLoadElemsS
+    rangeLoadSlicesS arr tarr start end =
+        genericLoadSlicesS
             arr tarr (\sl tsl -> rangeLoadS sl tsl start end)
             start end
 
-    {-# INLINE linearLoadElemsP #-}
-    {-# INLINE rangeLoadElemsP #-}
-    {-# INLINE linearLoadElemsS #-}
-    {-# INLINE rangeLoadElemsS #-}
+    {-# INLINE linearLoadSlicesP #-}
+    {-# INLINE rangeLoadSlicesP #-}
+    {-# INLINE linearLoadSlicesS #-}
+    {-# INLINE rangeLoadSlicesS #-}
 
 
 parallelLabel threads label =
     "Parallel in " ++ (show threads) ++ " threads: " ++ label
 
 
-{-# INLINE genericLoadElemsS #-}
-genericLoadElemsS (TimeIt label repeats arr) tarr load start end = do
-    let slices = elems arr
-        targetSlices = elems tarr
+{-# INLINE genericLoadSlicesS #-}
+genericLoadSlicesS (TimeIt label repeats arr) tarr load start end = do
+    let sourceSlices = slices arr
+        targetSlices = slices tarr
         loadElem i sl tsl =
             genericLoad
                 (label ++ ": slice " ++ (show i)) repeats load
                 start end sl tsl
-    V.sequence $ V.izipWith loadElem slices targetSlices
+    V.sequence $ V.izipWith loadElem sourceSlices targetSlices
     return ()
 
 

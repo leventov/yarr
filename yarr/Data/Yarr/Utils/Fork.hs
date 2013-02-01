@@ -13,87 +13,88 @@ parallel_ :: Shape sh => Int -> (sh -> sh -> IO a) -> sh -> sh -> IO ()
 parallel_ threads rangeLoad start end =
     Par.parallel_ $ fork threads start end rangeLoad
 
-parallelElems_
+parallelSlices_
     :: (Shape sh, Arity n)
     => Int
     -> VecList n (sh -> sh -> IO a)
     -> sh -> sh
     -> IO ()
-{-# INLINE parallelElems_ #-}
-parallelElems_ threads rangeLoads start end =
-    Par.parallel_ $ forkElemsOnce threads start end rangeLoads
+{-# INLINE parallelSlices_ #-}
+parallelSlices_ threads rangeLoads start end =
+    Par.parallel_ $ forkSlicesOnce threads start end rangeLoads
 
-fork
-    :: Shape sh
-    => Int
-    -> sh -> sh
-    -> (sh -> sh -> IO a)
-    -> [IO a]
+
+fork :: Shape sh
+     => Int
+     -> sh -> sh
+     -> (sh -> sh -> IO a)
+     -> [IO a]
 {-# INLINE fork #-}
 fork threads start end rangeWork =
     generate threads $ makeFork threads start end rangeWork
 
 
-forkEachElem
+forkEachSlice
     :: (Shape sh, Arity n, v ~ VecList n)
     => Int
     -> sh -> sh
     -> v (sh -> sh -> IO a)
     -> [IO (v a)]
-{-# INLINE forkEachElem #-}
-forkEachElem threads start end rangeWorks =
+{-# INLINE forkEachSlice #-}
+forkEachSlice threads start end rangeWorks =
     let {-# INLINE etWork #-}
         etWork = makeFork threads start end
     in generate threads $
         \ !t -> V.sequence $ V.map (\work -> etWork work t) rangeWorks
 
 
-forkElemsOnce
+forkSlicesOnce
     :: (Shape sh, Arity n)
     => Int
     -> sh -> sh
     -> VecList n (sh -> sh -> IO a)
     -> [IO [(Int, a)]]
-{-# INLINE forkElemsOnce #-}
-forkElemsOnce !threads start end rangeWorks =
-    let !elems = V.length rangeWorks
-        !allChunks = lcm threads elems
-        !chunksPerElem = allChunks `quot` elems
+{-# INLINE forkSlicesOnce #-}
+forkSlicesOnce !threads start end rangeWorks =
+    let !slices = V.length rangeWorks
+        !allChunks = lcm threads slices
+        !chunksPerSlice = allChunks `quot` slices
         !chunksPerThread = allChunks `quot` threads
 
         {-# INLINE range #-}
-        range = makeChunkRange chunksPerElem start end
+        range = makeChunkRange chunksPerSlice start end
 
         {-# INLINE threadWork #-}
-        threadWork startElem startPos !endElem !endPos =
+        threadWork startSlice startPos !endSlice !endPos =
             let {-# INLINE elemWork #-}
-                elemWork !currElem !currPos results =
-                    if (currElem > endElem) ||
-                       (currElem == endElem && endPos == start)
+                elemWork !currSlice !currPos results =
+                    if (currSlice > endSlice) ||
+                       (currSlice == endSlice && endPos == start)
                         then return $ reverse results
                         else
-                            let endInE =
-                                    if currElem == endElem then endPos else end
+                            let endInSl = if currSlice == endSlice
+                                                then endPos
+                                                else end
                             in do
-                                r <- (rangeWorks V.! currElem) currPos endInE
+                                r <- (rangeWorks V.! currSlice) currPos endInSl
                                 elemWork
-                                    (currElem + 1)
+                                    (currSlice + 1)
                                     start
-                                    ((currElem, r):results)
+                                    ((currSlice, r):results)
 
-            in elemWork startElem startPos []
+            in elemWork startSlice startPos []
 
     in generate threads $
         \ !t ->
             let startChunk = t * chunksPerThread
-                (startElem, stChunkInE) = startChunk `quotRem` chunksPerElem
-                (startPos, _) = range stChunkInE
+                (startSlice, stChunkInSl) = startChunk `quotRem` chunksPerSlice
+                (startPos, _) = range stChunkInSl
 
                 endChunk = (t + 1) * chunksPerThread - 1
-                (endElem, endChunkInE) = endChunk `quotRem` chunksPerElem
-                (_, endPos) = range endChunkInE
+                (endSlice, endChunkInSl) = endChunk `quotRem` chunksPerSlice
+                (_, endPos) = range endChunkInSl
 
-            in threadWork startElem startPos endElem endPos
+            in threadWork startSlice startPos endSlice endPos
 
 
 makeFork

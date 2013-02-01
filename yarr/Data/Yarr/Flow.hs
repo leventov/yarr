@@ -4,80 +4,7 @@ module Data.Yarr.Flow where
 import Data.Yarr.Base
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
-import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
-
-safeFill
-    :: (USource r sh a, UTarget tr sh b)
-    => (UArray r sh a -> UArray tr sh b -> IO ())
-    -> UArray tr sh b
-    -> UArray r sh a
-    -> IO ()
-{-# INLINE safeFill #-}
-safeFill load tarr arr = do
-    load arr tarr
-    touch arr
-    touch tarr
-
-fillP
-    :: (USource r sh a, UTarget tr sh a)
-    => UArray tr sh a
-    -> UArray r sh a
-    -> IO ()
-{-# INLINE fillP #-}
-fillP = safeFill dLoadP
-
-fillS
-    :: (USource r sh a, UTarget tr sh a)
-    => UArray tr sh a
-    -> UArray r sh a
-    -> IO ()
-{-# INLINE fillS #-}
-fillS = safeFill dLoadS
-
-
-safeCompute
-    :: (USource r sh a, Manifest mr sh b)
-    => (UArray r sh a -> UArray mr sh b -> IO ())
-    -> UArray r sh a
-    -> IO (UArray mr sh b)
-{-# INLINE safeCompute #-}
-safeCompute load arr = do
-    marr <- new (extent arr)
-    safeFill load marr arr
-    return marr
-
-computeP
-    :: (USource r sh a, Manifest mr sh a)
-    => UArray r sh a
-    -> IO (UArray mr sh a)
-{-# INLINE computeP #-}
-computeP = safeCompute dLoadP
-
-computeS
-    :: (USource r sh a, Manifest mr sh a)
-    => UArray r sh a
-    -> IO (UArray mr sh a)
-{-# INLINE computeS #-}
-computeS = safeCompute dLoadS
-
-
-computeElemsP
-    :: (UVecSource r sh slr v1 a,
-        Manifest mr sh (v2 a), UVecTarget mr sh mslr v2 a,
-        Dim v1 ~ Dim v2)
-    => (UArray r sh (v1 a)) -> IO (UArray mr sh (v2 a))
-{-# INLINE computeElemsP #-}
-computeElemsP = safeCompute dLoadElemsP
-
-
-computeElemsS
-    :: (UVecSource r sh slr v1 a,
-        Manifest mr sh (v2 a), UVecTarget mr sh mslr v2 a,
-        Dim v1 ~ Dim v2)
-    => (UArray r sh (v1 a)) -> IO (UArray mr sh (v2 a))
-{-# INLINE computeElemsS #-}
-computeElemsS = safeCompute dLoadElemsS
 
 
 traverse
@@ -99,18 +26,18 @@ zipElems
 {-# INLINE zipElems #-}
 zipElems fn arr = dmap (\v -> inspect v (Fun fn)) arr
 
--- Injective vector type
+
 mapElems
-    :: (UVecRegular r sh slr v a, DefaultFusion slr fslr sh a b,
+    :: (VecRegular r sh slr v a, DefaultFusion slr fslr sh a b,
         Vector v b)
     => (a -> b)
     -> UArray r sh (v a)
     -> UArray (SE fslr) sh (v b)
 {-# INLINE mapElems #-}
-mapElems f = dmapElems (V.replicate f)
+mapElems = mapElems'
 
 mapElems'
-    :: (UVecRegular r sh slr v a, DefaultFusion slr fslr sh a b,
+    :: (VecRegular r sh slr v a, DefaultFusion slr fslr sh a b,
         Vector v2 b, Dim v ~ Dim v2)
     => (a -> b)
     -> UArray r sh (v a)

@@ -1,5 +1,5 @@
 Name:                yarr
-Version:             0.8.2
+Version:             0.8.3
 Synopsis:            Yet another array library
 License:             MIT
 License-file:        LICENSE
@@ -15,12 +15,12 @@ Library
         base == 4.6.*,
         ghc-prim == 0.3.*,
         deepseq == 1.3.*,
-        fixed-vector >= 0.1.2
-
-    ghc-options:
-        -Odph
-        -funbox-strict-fields
-        -fcpr-off
+        fixed-vector == 0.1.2
+--
+--    ghc-options:
+--        -Odph
+--        -funbox-strict-fields
+--        -fcpr-off
 
     extensions:
         TypeFamilies, MultiParamTypeClasses, FunctionalDependencies,
@@ -35,6 +35,7 @@ Library
     exposed-modules:
         Data.Yarr
         Data.Yarr.Base
+        Data.Yarr.Eval
         Data.Yarr.Flow
         Data.Yarr.Shape
         Data.Yarr.Repr.Delayed

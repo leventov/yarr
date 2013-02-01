@@ -11,24 +11,24 @@ import Data.Yarr.Utils.FixedVector as V
 
 data CHK r
 
-instance URegular r sh a => URegular (CHK r) sh a where
+instance Regular r sh a => Regular (CHK r) sh a where
     newtype UArray (CHK r) sh a = Checked { unchecked :: UArray r sh a }
 
     extent = extent . unchecked
-    isReshaped = isReshaped . unchecked
+    shapeIndexingPreferred = shapeIndexingPreferred . unchecked
     touch = touch . unchecked
 
     {-# INLINE extent #-}
-    {-# INLINE isReshaped #-}
+    {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}
 
 instance NFData (UArray r sh a) => NFData (UArray (CHK r) sh a) where
     rnf = rnf . unchecked
     {-# INLINE rnf #-}
 
-instance UVecRegular r sh slr v e => UVecRegular (CHK r) sh (CHK slr) v e where
-    elems = V.map Checked . elems . unchecked
-    {-# INLINE elems #-}
+instance VecRegular r sh slr v e => VecRegular (CHK r) sh (CHK slr) v e where
+    slices = V.map Checked . slices . unchecked
+    {-# INLINE slices #-}
 
 instance USource r sh a => USource (CHK r) sh a where
     index (Checked arr) sh =
@@ -59,14 +59,14 @@ instance USource r sh a => USource (CHK r) sh a where
     {-# INLINE linearLoadS #-}
 
 instance UVecSource r sh slr v e => UVecSource (CHK r) sh (CHK slr) v e where
-    rangeLoadElemsP threads (Checked arr) = rangeLoadElemsP threads arr
-    linearLoadElemsP threads (Checked arr) = linearLoadElemsP threads arr
-    rangeLoadElemsS (Checked arr) = rangeLoadElemsS arr
-    linearLoadElemsS (Checked arr) = linearLoadElemsS arr
-    {-# INLINE rangeLoadElemsP #-}
-    {-# INLINE linearLoadElemsP #-}
-    {-# INLINE rangeLoadElemsS #-}
-    {-# INLINE linearLoadElemsS #-}
+    rangeLoadSlicesP threads (Checked arr) = rangeLoadSlicesP threads arr
+    linearLoadSlicesP threads (Checked arr) = linearLoadSlicesP threads arr
+    rangeLoadSlicesS (Checked arr) = rangeLoadSlicesS arr
+    linearLoadSlicesS (Checked arr) = linearLoadSlicesS arr
+    {-# INLINE rangeLoadSlicesP #-}
+    {-# INLINE linearLoadSlicesP #-}
+    {-# INLINE rangeLoadSlicesS #-}
+    {-# INLINE linearLoadSlicesS #-}
 
 
 instance Fusion r fr sh a b => Fusion (CHK r) (CHK fr) sh a b where

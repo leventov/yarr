@@ -22,8 +22,6 @@ import Foreign.Storable (peek)
 import Foreign.Marshal.Utils (with)
 
 import Data.Yarr
-import Data.Yarr.Repr.Foreign (unsafeFromForeignPtr, toForeignPtr)
-import Data.Yarr.Utils.FixedVector as V
 
 #include "IL/il.h"
 

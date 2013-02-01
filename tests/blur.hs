@@ -1,18 +1,13 @@
 {-# LANGUAGE FlexibleContexts, ScopedTypeVariables, BangPatterns #-}
 
-module Main where
-
 import System.Environment
 import Data.Word
-import GHC.Conc
 
 import Data.Yarr
-import Data.Yarr.Shape as S
-import Data.Yarr.Repr.Separate
 import Data.Yarr.Repr.Convoluted
 import Data.Yarr.IO.Image
 import Data.Yarr.Benchmarking
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector
 
 blur :: UArray D Dim2 Int -> UArray CV Dim2 Float
 {-# INLINE blur #-}
@@ -39,11 +34,11 @@ main = do
         computeS $ mapElems fromIntegral $ readRGBVectors anyImage
 
     let delayedImage = mapElems id image
-        delayedBlurred = mapElems truncate' $ mapSeparate blur delayedImage
+        delayedBlurred = mapElems truncate' $ mapSlices blur delayedImage
 
     (blurred :: UArray F Dim2 (VecList N3 Word8)) <-
-        computeElemsS $ dTimeIt "sequential blur" delayedBlurred
+        computeSlicesS $ dTimeIt "sequential blur" delayedBlurred
 
-    safeFill dLoadElemsP blurred $ dTimeIt "parallel blur" delayedBlurred
+    fillSlicesP blurred $ dTimeIt "parallel blur" delayedBlurred
 
     writeImage ("t-blurred-" ++ imageFile) (RGB blurred)

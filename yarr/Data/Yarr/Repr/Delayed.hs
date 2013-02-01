@@ -8,29 +8,30 @@ import Data.Yarr.Base as B
 import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
 
+
 data D
 
-instance Shape sh => URegular D sh a where
+instance Shape sh => Regular D sh a where
 
     data UArray D sh a =
         Delayed
             !sh           -- Extent
-            !Bool         -- If reshaped
+            !Bool         -- If shape indexing preferred
             (IO ())       -- Touch
             (sh -> IO a)  -- Get
             (Int -> IO a) -- Linear get
 
     extent (Delayed sh _ _ _ _) = sh
-    isReshaped (Delayed _ reshaped _ _ _) = reshaped
+    shapeIndexingPreferred (Delayed _ shIxPref _ _ _) = shIxPref
     touch (Delayed _ _ tch _ _) = tch
 
     {-# INLINE extent #-}
-    {-# INLINE isReshaped #-}
+    {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}
 
 instance Shape sh => NFData (UArray D sh a) where
-    rnf (Delayed sh reshaped tch get lget) =
-        sh `deepseq` reshaped `seq` tch `seq` lget `seq` get `seq` ()
+    rnf (Delayed sh shIxPref tch get lget) =
+        sh `deepseq` shIxPref `seq` tch `seq` lget `seq` get `seq` ()
 
 instance Shape sh => USource D sh a where
     index (Delayed _ _ _ get _) = get
@@ -39,21 +40,21 @@ instance Shape sh => USource D sh a where
     {-# INLINE linearIndex #-}
 
 
-instance (Shape sh, Vector v e) => UVecRegular D sh D v e where
-    elems (Delayed sh reshaped tch get lget) =
+instance (Shape sh, Vector v e) => VecRegular D sh D v e where
+    slices (Delayed sh shIxPref tch get lget) =
         V.generate (
             \i ->
                 Delayed
-                    sh reshaped tch
+                    sh shIxPref tch
                     ((return . (V.! i)) <=< get)
                     ((return . (V.! i)) <=< lget))
-    {-# INLINE elems #-}
+    {-# INLINE slices #-}
 
 instance (Shape sh, Vector v e) => UVecSource D sh D v e
 
 instance USource r sh a => Fusion r D sh a b where
     fmapM f arr =
-        Delayed (extent arr) (isReshaped arr) (touch arr)
+        Delayed (extent arr) (shapeIndexingPreferred arr) (touch arr)
             (f <=< index arr) (f <=< linearIndex arr)
 
     fzipM fun arrs =
@@ -63,7 +64,7 @@ instance USource r sh a => Fusion r D sh a b where
             sh = if not needReshape
                     then sh0
                     else intersect shapes
-            reshaped = needReshape || any isReshaped (V.toList arrs)
+            shIxPref = needReshape || any shapeIndexingPreferred (V.toList arrs)
 
             tch = V.mapM_ touch arrs
 
@@ -85,7 +86,7 @@ instance USource r sh a => Fusion r D sh a b where
                 v <- V.mapM ($ i) lgets
                 inspect v fun
 
-        in Delayed sh reshaped tch get lget
+        in Delayed sh shIxPref tch get lget
 
     {-# INLINE fmapM #-}
     {-# INLINE fzipM #-}

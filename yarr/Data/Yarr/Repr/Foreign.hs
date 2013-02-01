@@ -36,7 +36,7 @@ instance (Storable e, Vector v e) => Storable (v e) where
 
 data F
 
-instance Shape sh => URegular F sh a where
+instance Shape sh => Regular F sh a where
 
     data UArray F sh a =
         ForeignArray
@@ -46,11 +46,11 @@ instance Shape sh => URegular F sh a where
             !(Ptr a)         -- Plain ptr for fast memory access
     
     extent (ForeignArray sh _ _) = sh
-    isReshaped _ = False
+    shapeIndexingPreferred _ = False
     touch (ForeignArray _ fptr _) = touchForeignPtr fptr
     
     {-# INLINE extent #-}
-    {-# INLINE isReshaped #-}
+    {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}    
 
 instance Shape sh => NFData (UArray F sh a) where
@@ -65,7 +65,7 @@ instance (Shape sh, Storable a) => DefaultFusion F D sh a b
 
 data FS
 
-instance Shape sh => URegular FS sh e where
+instance Shape sh => Regular FS sh e where
 
     data UArray FS sh e =
         ForeignSlice
@@ -76,11 +76,11 @@ instance Shape sh => URegular FS sh e where
             !(Ptr e)         -- Plain ptr for fast memory access
     
     extent (ForeignSlice sh _ _ _) = sh
-    isReshaped _ = False
+    shapeIndexingPreferred _ = False
     touch (ForeignSlice _ _ fptr _) = touchForeignPtr fptr
     
     {-# INLINE extent #-}
-    {-# INLINE isReshaped #-}
+    {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}
 
 instance Shape sh => NFData (UArray FS sh e) where
@@ -94,15 +94,15 @@ instance (Shape sh, Storable e) => USource FS sh e where
 instance (Shape sh, Storable e) => DefaultFusion FS D sh e b
 
 
-instance (Shape sh, Vector v e, Storable e) => UVecRegular F sh FS v e where
-    elems (ForeignArray sh fptr ptr) =
+instance (Shape sh, Vector v e, Storable e) => VecRegular F sh FS v e where
+    slices (ForeignArray sh fptr ptr) =
         let esize = sizeOf (undefined :: e)
             vsize = sizeOf (undefined :: (v e))
             eptr = castPtr ptr
             feptr = castForeignPtr fptr
         in V.generate $ \i ->
             ForeignSlice sh vsize feptr (eptr `plusPtr` (i * esize))
-    {-# INLINE elems #-}
+    {-# INLINE slices #-}
 
 instance (Shape sh, Vector v e, Storable e) => UVecSource F sh FS v e
 
@@ -130,7 +130,7 @@ instance (Shape sh, Storable e) => UTarget FS sh e where
 instance (Shape sh, Vector v e, Storable e) => UVecTarget F sh FS v e
 
 
-toForeignPtr :: URegular F sh a => UArray F sh a -> ForeignPtr a
+toForeignPtr :: Regular F sh a => UArray F sh a -> ForeignPtr a
 {-# INLINE toForeignPtr #-}
 toForeignPtr (ForeignArray _ fptr _) = fptr
 

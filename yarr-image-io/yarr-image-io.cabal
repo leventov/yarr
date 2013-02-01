@@ -1,5 +1,5 @@
 Name:                yarr-image-io
-Version:             0.8.2
+Version:             0.8.3
 Synopsis:            Image IO for Yarr library
 License:             MIT
 License-file:        LICENSE
@@ -13,7 +13,7 @@ Cabal-version:       >= 1.8
 Library
     build-depends:
         base == 4.6.*,
-        yarr == 0.8.*
+        yarr == 0.8.3
 
     extra-libraries: IL
 

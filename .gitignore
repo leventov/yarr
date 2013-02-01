@@ -2,3 +2,4 @@
 *.hspp
 *.o
 *.as
+dist/
