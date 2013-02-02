@@ -113,13 +113,19 @@ instance (Shape sh, Storable a) => UTarget F sh a where
     linearWrite (ForeignArray _ _ ptr) i x = pokeElemOff ptr i x
     {-# INLINE linearWrite #-}
 
-instance (Shape sh, Storable a) => Manifest F sh a where
+instance (Shape sh, Storable a) => Manifest F F sh a where
     new sh = do
         let len = size sh
         ptr <- mallocBytes (len * sizeOf (undefined :: a))
         fptr <- newForeignPtr finalizerFree (castPtr ptr)
         return $ ForeignArray sh fptr ptr
+
+    freeze = return
+    thaw = return
+    
     {-# INLINE new #-}
+    {-# INLINE freeze #-}
+    {-# INLINE thaw #-}
     
 
 instance (Shape sh, Storable e) => UTarget FS sh e where

@@ -183,8 +183,11 @@ class Regular tr sh a => UTarget tr sh a where
     {-# INLINE write #-}
     {-# INLINE linearWrite #-}
 
-class UTarget mr sh a => Manifest mr sh a where
+class (USource r sh a, UTarget mr sh a) =>
+        Manifest r mr sh a | r -> mr, mr -> r where
     new :: sh -> IO (UArray mr sh a)
+    freeze :: UArray mr sh a -> IO (UArray r sh a)
+    thaw :: UArray r sh a -> IO (UArray mr sh a)
 
 
 class (VecRegular tr sh tslr v e, UTarget tr sh (v e), UTarget tslr sh e) =>

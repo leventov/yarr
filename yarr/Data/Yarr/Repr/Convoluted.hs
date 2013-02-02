@@ -51,7 +51,7 @@ instance USource CV Dim2 a where
             else bget sh
 
     rangeLoadP threads = rangeLoadConvolutedP threads dUnrolledFill
-    rangeLoadS = dim2RangeLoadS dUnrolledFill
+    rangeLoadS = rangeLoadConvolutedS dUnrolledFill
 
     {-# INLINE index #-}
     {-# INLINE rangeLoadP #-}
@@ -94,8 +94,12 @@ rangeLoadConvolutedP
     in Par.parallel_ threadWorks
 
 
-{-# INLINE dim2RangeLoadS #-}
-dim2RangeLoadS blockFill arr@(Convoluted _ _ bget center cget) tarr start end =
+{-# INLINE rangeLoadConvolutedS #-}
+rangeLoadConvolutedS
+        blockFill
+        arr@(Convoluted _ _ bget center cget) tarr
+        start end =
+            
     let loadRange = (start, end)
         loadCenter@(cs, ce) = intersectBlocks [center, loadRange]
 
@@ -105,7 +109,7 @@ dim2RangeLoadS blockFill arr@(Convoluted _ _ bget center cget) tarr start end =
         wr = write tarr
     in do
         blockFill cget wr cs ce
-        P.mapM_ (\(bs, be) -> dUnrolledFill bget wr bs be) bounds
+        P.mapM_ (\(bs, be) -> S.fill bget wr bs be) bounds
 
 
 

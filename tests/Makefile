@@ -9,7 +9,7 @@ GCCFLAGS = -O2
 ct: color-trans.hs
 	ghc --make $(GHCFLAGS) $(DDUMP_CORE) -o ct color-trans.hs > ct-core.hs
 
-blur: $(BLUR_DEPS)
+blur: blur.hs
 	ghc --make $(GHCFLAGS) $(DDUMP_CORE) -o blur blur.hs > blur-core.hs
 
 %.as: %

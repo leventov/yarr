@@ -13,11 +13,11 @@ import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
 
 
-data B r
+data T r
 
-instance Regular r sh a => Regular (B r) sh a where
+instance Regular r sh a => Regular (T r) sh a where
 
-    data UArray (B r) sh a =
+    data UArray (T r) sh a =
         TimeIt {
             label :: String,
             repeats :: Int,
@@ -31,16 +31,16 @@ instance Regular r sh a => Regular (B r) sh a where
     {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}
 
-dTimeIt :: String -> UArray r sh a -> UArray (B r) sh a
+dTimeIt :: String -> UArray r sh a -> UArray (T r) sh a
 dTimeIt label arr = TimeIt label 10 arr
 
-instance NFData (UArray r sh a) => NFData (UArray (B r) sh a) where
+instance NFData (UArray r sh a) => NFData (UArray (T r) sh a) where
     rnf (TimeIt label repeats arr) =
         label `deepseq` repeats `seq` arr `deepseq` ()
     {-# INLINE rnf #-}
 
 
-instance USource r sh a => USource (B r) sh a where
+instance USource r sh a => USource (T r) sh a where
     index (TimeIt _ _ arr) = index arr
     linearIndex (TimeIt _ _ arr) = linearIndex arr
 
@@ -79,12 +79,12 @@ instance USource r sh a => USource (B r) sh a where
     {-# INLINE rangeLoadS #-}
 
 
-instance VecRegular r sh rsl v e => VecRegular (B r) sh rsl v e where
+instance VecRegular r sh rsl v e => VecRegular (T r) sh rsl v e where
     slices (TimeIt _ _ arr) = slices arr
     {-# INLINE slices #-}
 
 
-instance UVecSource r sh slr v e => UVecSource (B r) sh slr v e where
+instance UVecSource r sh slr v e => UVecSource (T r) sh slr v e where
 
     linearLoadSlicesP threads (TimeIt label repeats arr) tarr =
         genericLoad
@@ -126,8 +126,7 @@ genericLoadSlicesS (TimeIt label repeats arr) tarr load start end = do
             genericLoad
                 (label ++ ": slice " ++ (show i)) repeats load
                 start end sl tsl
-    V.sequence $ V.izipWith loadElem sourceSlices targetSlices
-    return ()
+    V.sequence_ $ V.izipWith loadElem sourceSlices targetSlices
 
 
 {-# INLINE genericLoad #-}

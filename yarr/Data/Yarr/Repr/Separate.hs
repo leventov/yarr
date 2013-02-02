@@ -136,7 +136,7 @@ dzipElemsM = fzipElemsM
 
 
 
-instance (UTarget tr sh e, Arity n) => UTarget (SE tr) sh (VecList n e) where
+instance (UTarget tr sh e, Vector v e) => UTarget (SE tr) sh (v e) where
     write (Separate _ slices) sh v =
         V.zipWithM_ (\el x -> write el sh x) slices (convert v)
     linearWrite (Separate _ slices) i v =
@@ -144,11 +144,15 @@ instance (UTarget tr sh e, Arity n) => UTarget (SE tr) sh (VecList n e) where
     {-# INLINE write #-}
     {-# INLINE linearWrite #-}
 
-instance (Manifest mr sh e, Arity n) => Manifest (SE mr) sh (VecList n e) where
-    new sh = (return . Separate sh) =<< (V.replicateM (B.new sh))
+instance (Manifest r mr sh e, Vector v e) => Manifest (SE r) (SE mr) sh (v e) where
+    new sh = P.fmap (Separate sh) (V.replicateM (B.new sh))
+    freeze (Separate sh mslices) = P.fmap (Separate sh) (V.mapM freeze mslices)
+    thaw (Separate sh slices) = P.fmap (Separate sh) (V.mapM thaw slices)
     {-# INLINE new #-}
+    {-# INLINE freeze #-}
+    {-# INLINE thaw #-}
 
-instance (UTarget tr sh e, Arity n) => UVecTarget (SE tr) sh tr (VecList n) e
+instance (UTarget tr sh e, Vector v e) => UVecTarget (SE tr) sh tr v e
 
 
 fromSlices

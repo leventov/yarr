@@ -11,6 +11,7 @@ module Data.Yarr (
     module Data.Yarr.Flow,
     
     F, unsafeFromForeignPtr, toForeignPtr,
+    B, MB,
     D, fromShapeFunction, fromLinearFunction,
     SE, fromSlices, mapSlices
 
@@ -21,6 +22,7 @@ import Data.Yarr.Eval
 import Data.Yarr.Flow
 import Data.Yarr.Shape
 import Data.Yarr.Repr.Foreign
+import Data.Yarr.Repr.Boxed
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
 import Data.Yarr.Utils.FixedVector as V

@@ -121,41 +121,41 @@ fillSlicesS = safeFill loadSlicesS
 
 
 safeCompute
-    :: (USource r sh a, Manifest mr sh b)
-    => (UArray r sh a -> UArray mr sh b -> IO ())
-    -> UArray r sh a -> IO (UArray mr sh b)
+    :: (USource r sh a, Manifest tr mtr sh b)
+    => (UArray r sh a -> UArray mtr sh b -> IO ())
+    -> UArray r sh a -> IO (UArray tr sh b)
 {-# INLINE safeCompute #-}
 safeCompute load arr = do
     marr <- new (extent arr)
     safeFill load marr arr
-    return marr
+    freeze marr
 
 computeP
-    :: (USource r sh a, Manifest mr sh a)
-    => UArray r sh a -> IO (UArray mr sh a)
+    :: (USource r sh a, Manifest tr mtr sh a)
+    => UArray r sh a -> IO (UArray tr sh a)
 {-# INLINE computeP #-}
 computeP = safeCompute dLoadP
 
 computeS
-    :: (USource r sh a, Manifest mr sh a)
-    => UArray r sh a -> IO (UArray mr sh a)
+    :: (USource r sh a, Manifest tr mtr sh a)
+    => UArray r sh a -> IO (UArray tr sh a)
 {-# INLINE computeS #-}
 computeS = safeCompute loadS
 
 
 computeSlicesP
     :: (UVecSource r sh slr v1 a,
-        Manifest mr sh (v2 a), UVecTarget mr sh mslr v2 a,
+        Manifest tr mtr sh (v2 a), UVecTarget mtr sh mtslr v2 a,
         Dim v1 ~ Dim v2)
-    => (UArray r sh (v1 a)) -> IO (UArray mr sh (v2 a))
+    => (UArray r sh (v1 a)) -> IO (UArray tr sh (v2 a))
 {-# INLINE computeSlicesP #-}
 computeSlicesP = safeCompute dLoadSlicesP
 
 
 computeSlicesS
     :: (UVecSource r sh slr v1 a,
-        Manifest mr sh (v2 a), UVecTarget mr sh mslr v2 a,
+        Manifest tr mtr sh (v2 a), UVecTarget mtr sh mtslr v2 a,
         Dim v1 ~ Dim v2)
-    => (UArray r sh (v1 a)) -> IO (UArray mr sh (v2 a))
+    => (UArray r sh (v1 a)) -> IO (UArray tr sh (v2 a))
 {-# INLINE computeSlicesS #-}
 computeSlicesS = safeCompute loadSlicesS
