@@ -1,18 +1,16 @@
 
-module Data.Yarr.Repr.Convoluted where
+module Data.Yarr.Convolution.Repr where
 
 import Prelude as P
 import Control.Monad
-import GHC.Conc
 
 import Data.Yarr.Base as B
 import Data.Yarr.Shape as S
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
 import Data.Yarr.Utils.FixedVector as V
-import Data.Yarr.Utils.Fork as Fork
-import Data.Yarr.Utils.Touchable as T
-import Data.Yarr.Utils.Parallel as Par
+import Data.Yarr.Utils.Fork
+import Data.Yarr.Utils.Parallel
 import Data.Yarr.Utils.Split
 
 
@@ -44,20 +42,30 @@ instance Shape sh => NFData (UArray CV sh a) where
 
 
 
-instance USource CV Dim2 a where
+instance BlockShape sh => USource CV sh a where
     index (Convoluted _ _ bget center cget) sh =
         if insideBlock center sh
             then cget sh
             else bget sh
 
-    rangeLoadP threads = rangeLoadConvolutedP threads dUnrolledFill
-    rangeLoadS = rangeLoadConvolutedS dUnrolledFill
+    rangeLoadP threads = rangeLoadConvolutedP threads S.fill
+    rangeLoadS = rangeLoadConvolutedS S.fill
 
     {-# INLINE index #-}
     {-# INLINE rangeLoadP #-}
     {-# INLINE rangeLoadS #-}
 
-
+rangeLoadConvolutedP
+    :: (BlockShape sh, UTarget tr sh a)
+    => Int
+    -> ((sh -> IO a) ->
+        (sh -> a -> IO ()) ->
+        sh -> sh ->
+        IO ())
+    -> UArray CV sh a
+    -> UArray tr sh a
+    -> sh -> sh
+    -> IO ()
 {-# INLINE rangeLoadConvolutedP #-}
 rangeLoadConvolutedP
         threads
@@ -91,14 +99,24 @@ rangeLoadConvolutedP
 
                     in P.zipWith threadWork centerWorks threadBorders
                                     
-    in Par.parallel_ threadWorks
+    in parallel_ threadWorks
 
 
+rangeLoadConvolutedS
+    :: (BlockShape sh, UTarget tr sh a)
+    => ((sh -> IO a) ->
+        (sh -> a -> IO ()) ->
+        sh -> sh ->
+        IO ())
+    -> UArray CV sh a
+    -> UArray tr sh a
+    -> sh -> sh
+    -> IO ()
 {-# INLINE rangeLoadConvolutedS #-}
 rangeLoadConvolutedS
         blockFill
         arr@(Convoluted _ _ bget center cget) tarr
-        start end =
+        start end = do
             
     let loadRange = (start, end)
         loadCenter@(cs, ce) = intersectBlocks [center, loadRange]
@@ -107,17 +125,29 @@ rangeLoadConvolutedS
         bounds = filter ((> 0) . blockSize) shavings
 
         wr = write tarr
-    in do
-        blockFill cget wr cs ce
-        P.mapM_ (\(bs, be) -> S.fill bget wr bs be) bounds
+
+    blockFill cget wr cs ce
+    P.mapM_ (\(bs, be) -> S.fill bget wr bs be) bounds
 
 
 
-instance Vector v e => UVecSource (SE CV) Dim2 CV v e where
-    rangeLoadSlicesP threads = rangeLoadConvolutedSlicesP threads dUnrolledFill
+instance (BlockShape sh, Vector v e) => UVecSource (SE CV) sh CV v e where
+    rangeLoadSlicesP threads = rangeLoadConvolutedSlicesP threads S.fill
     {-# INLINE rangeLoadSlicesP #-}
 
 
+rangeLoadConvolutedSlicesP
+    :: (BlockShape sh,
+        Vector v a, UVecTarget tr sh tslr v2 a, Dim v ~ Dim v2)
+    => Int
+    -> ((sh -> IO a) ->
+        (sh -> a -> IO ()) ->
+        sh -> sh ->
+        IO ())
+    -> UArray (SE CV) sh (v a)
+    -> UArray tr sh (v2 a)
+    -> sh -> sh
+    -> IO ()
 {-# INLINE rangeLoadConvolutedSlicesP #-}
 rangeLoadConvolutedSlicesP threads blockFill separateArr tarr start end =
     let convolutedSlices = slices separateArr
@@ -155,11 +185,11 @@ rangeLoadConvolutedSlicesP threads blockFill separateArr tarr start end =
 
         threadWorks = P.zipWith threadWork threadCenterWorks threadBorderWorks
 
-    in Par.parallel_ threadWorks
+    in parallel_ threadWorks
 
 
 
-instance (USource CV sh a, USource CV sh b, BlockShape sh) =>
+instance (BlockShape sh, USource CV sh a, USource CV sh b) =>
         Fusion CV CV sh a b where
     fmapM f (Convoluted sh tch bget center cget) =
         Convoluted sh tch (f <=< bget) center (f <=< cget)
@@ -190,89 +220,5 @@ instance (USource CV sh a, USource CV sh b, BlockShape sh) =>
     {-# INLINE fmapM #-}
     {-# INLINE fzipM #-}
 
-instance (USource CV sh a, USource CV sh b, BlockShape sh) =>
+instance (BlockShape sh, USource CV sh a, USource CV sh b) =>
         DefaultFusion CV CV sh a b
-
-
-
-class (Arity n, Arity so, Arity eo) =>
-        StencilOffsets n so eo | n -> so eo, so eo -> n where
-    offsets :: n -> (so, eo)
-    offsets _ = (undefined, undefined)
-    {-# INLINE offsets #-}
-
-instance StencilOffsets N1 Z Z
-instance StencilOffsets N2 Z N1
-instance (StencilOffsets (S n0) s0 e0) =>
-        StencilOffsets (S (S (S n0))) (S s0) (S e0)
-
-dim2ConvolveWithStaticStencil
-    :: forall sx sox eox sy soy eoy r a b c d.
-       (StencilOffsets sx sox eox, StencilOffsets sy soy eoy,
-        USource r Dim2 a)
-    => sx -> sy                  -- Size of stencil
-    -> VecList sy (VecList sx b) -- Stencil values
-    -> (c -> a -> b -> c)        -- Generalized reduce function
-    -> c                         -- Reduce zero
-    -> UArray r Dim2 a           -- Source
-    -> UArray CV Dim2 c
-{-# INLINE dim2ConvolveWithStaticStencil #-}
-dim2ConvolveWithStaticStencil _ _ stencil reduce z arr =
-    let !startOffX = arity (undefined :: sox)
-        !endOffX = arity (undefined :: eox)
-        
-        !startOffY = arity (undefined :: soy)
-        !endOffY = arity (undefined :: eoy)
-
-        {-# INLINE sget #-}
-        sget get =
-            \ (y, x) ->
-                V.iifoldM
-                    (-startOffY)
-                    succ
-                    (\acc iy xv ->
-                        V.iifoldM
-                            (-startOffX)
-                            succ
-                            (\acc ix b -> do
-                                a <- get (y + iy, x + ix)
-                                return $ reduce acc a b)
-                            acc
-                            xv)
-                    z
-                    stencil
-
-        !sh@(shY, shX) = extent arr
-
-        {-# INLINE slget #-}
-        slget (y, x) =
-            V.iifoldM
-                (-startOffY)
-                succ
-                (\acc iy xv ->
-                    let lbase = toIndex sh (y + iy, x)
-                    in V.iifoldM
-                        (-startOffX)
-                        succ
-                        (\acc ix b -> do
-                            a <- linearIndex arr (lbase + ix)
-                            return $ reduce acc a b)
-                        acc
-                        xv)
-                z
-                stencil
-
-        {-# INLINE cget #-}
-        cget = if shapeIndexingPreferred arr
-                    then sget (index arr)
-                    else slget
-        
-
-        {-# INLINE bget #-}
-        bget = sget (\(y, x) ->
-                        index arr (max 0 (min shY y), max 0 (min shX x)))
-
-        tl = (startOffY, startOffX)
-        br = (shY - endOffY, shX - endOffX)
-
-    in Convoluted sh (B.touch arr) bget (tl, br) cget

@@ -2,10 +2,15 @@
 module Data.Yarr.Utils.FixedVector (
     module Data.Vector.Fixed,
     Fn, arity,
-    zipWith3, zipWithM_,
-    apply, 
-    iifoldl, iifoldM,
-    n1, n2, n3, n4, n5, n6
+    
+    N7, N8,
+    n1, n2, n3, n4, n5, n6, n7, n8,
+    VecTuple(..),
+    makeVecTupleInstance,
+
+    zipWith3, zipWithM_, apply, 
+    
+    iifoldl, iifoldM
 ) where
 
 import Prelude hiding (zipWith, zipWith3)
@@ -14,6 +19,8 @@ import Control.DeepSeq
 
 import Data.Vector.Fixed
 import Data.Vector.Fixed.Internal hiding (apply)
+
+import Data.Yarr.Utils.VecTuple
 
 n1 :: N1
 n1 = undefined
@@ -32,6 +39,30 @@ n5 = undefined
 
 n6 :: N6
 n6 = undefined
+
+type N7 = S N6
+n7 :: N7
+n7 = undefined
+
+type N8 = S N7
+n8 :: N8
+n8 = undefined
+
+
+#define DERIV(n,clas) deriving instance clas e => clas (VecTuple (n) e)
+
+#define VEC_TUPLE_INST(N,con,tup)               \
+makeVecTupleInstance [t|N|] (undefined :: N);   \
+DERIV(N, Eq); DERIV(N, Ord); DERIV(N, Bounded); \
+DERIV(N, Read); DERIV(N, Show)
+
+VEC_TUPLE_INST(N2,VT_2,(e, e))
+VEC_TUPLE_INST(N3,VT_3,(e, e, e))
+VEC_TUPLE_INST(N4,VT_4,(e, e, e, e))
+VEC_TUPLE_INST(N5,VT_5,(e, e, e, e, e))
+VEC_TUPLE_INST(N6,VT_6,(e, e, e, e, e, e))
+VEC_TUPLE_INST(S N6,VT_7,(e, e, e, e, e, e, e))
+VEC_TUPLE_INST(S (S N6),VT_8,(e, e, e, e, e, e, e, e))
 
 
 instance (Arity n, NFData e) => NFData (VecList n e) where

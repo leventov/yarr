@@ -16,17 +16,18 @@ Library
         ghc-prim == 0.3.*,
         deepseq == 1.3.*,
         fixed-vector == 0.1.2,
-        primitive >= 0.2
+        primitive >= 0.2,
+        template-haskell == 2.8.*
 
     extensions:
         TypeFamilies, MultiParamTypeClasses, FunctionalDependencies,
         FlexibleContexts,
         EmptyDataDecls,
         FlexibleInstances, TypeSynonymInstances, UndecidableInstances,
-        GeneralizedNewtypeDeriving,
+        GeneralizedNewtypeDeriving, StandaloneDeriving,
         RankNTypes, ScopedTypeVariables, InstanceSigs,
         MagicHash, BangPatterns, UnboxedTuples,
-        CPP
+        TemplateHaskell, CPP
 
     exposed-modules:
         Data.Yarr
@@ -38,10 +39,16 @@ Library
         Data.Yarr.Repr.Boxed
         Data.Yarr.Repr.Delayed
         Data.Yarr.Repr.Separate
-        Data.Yarr.Repr.Convoluted
         Data.Yarr.Repr.Checked
+        Data.Yarr.Convolution
+        Data.Yarr.Convolution.Repr
+        Data.Yarr.Convolution.Eval
+        Data.Yarr.Convolution.StaticStencils
         Data.Yarr.Utils.FixedVector
         Data.Yarr.Utils.Fork
         Data.Yarr.Utils.Touchable
         Data.Yarr.Utils.Parallel
         Data.Yarr.Utils.Split
+
+    other-modules:
+        Data.Yarr.Utils.VecTuple

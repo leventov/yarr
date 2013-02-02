@@ -16,6 +16,7 @@ import Control.DeepSeq
 import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
 import Data.Yarr.Utils.Fork
+import Data.Yarr.Utils.Parallel
 
 
 class (NFData (UArray r sh a), Shape sh) => Regular r sh a where
@@ -45,8 +46,9 @@ class Regular r sh a => USource r sh a where
     rangeLoadP
         :: UTarget tr sh a
         => Int -> UArray r sh a -> UArray tr sh a -> sh -> sh -> IO ()
-    rangeLoadP threads arr tarr =
-        parallel_ threads (dUnrolledFill (index arr) (write tarr))
+    rangeLoadP threads arr tarr start end =
+        parallel_ $
+            fork threads start end (dUnrolledFill (index arr) (write tarr))
 
     rangeLoadS
         :: UTarget tr sh a
@@ -58,10 +60,10 @@ class Regular r sh a => USource r sh a where
         :: UTarget tr sh a
         => Int -> UArray r sh a -> UArray tr sh a -> IO ()
     linearLoadP threads arr tarr =
-         parallel_
-            threads
-            (dUnrolledFill (linearIndex arr) (linearWrite tarr))
-            0 (size (extent arr))
+         parallel_ $
+            fork threads 0 (size (extent arr))
+                 (dUnrolledFill (linearIndex arr) (linearWrite tarr))
+            
 
     linearLoadS
         :: UTarget tr sh a
@@ -130,6 +132,10 @@ class (VecRegular r sh slr v e, USource r sh (v e), USource slr sh e) =>
     {-# INLINE linearLoadSlicesP #-}
     {-# INLINE rangeLoadSlicesS #-}
     {-# INLINE linearLoadSlicesS #-}
+
+{-# INLINE parallelSlices_ #-}
+parallelSlices_ threads rangeLoads start end =
+    parallel_ $ forkSlicesOnce threads start end rangeLoads
 
 
 

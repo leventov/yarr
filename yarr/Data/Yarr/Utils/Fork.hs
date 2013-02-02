@@ -8,22 +8,6 @@ import Data.Yarr.Utils.FixedVector as V hiding (generate)
 import Data.Yarr.Utils.Parallel as Par
 
 
-parallel_ :: Shape sh => Int -> (sh -> sh -> IO a) -> sh -> sh -> IO ()
-{-# INLINE parallel_ #-}
-parallel_ threads rangeLoad start end =
-    Par.parallel_ $ fork threads start end rangeLoad
-
-parallelSlices_
-    :: (Shape sh, Arity n)
-    => Int
-    -> VecList n (sh -> sh -> IO a)
-    -> sh -> sh
-    -> IO ()
-{-# INLINE parallelSlices_ #-}
-parallelSlices_ threads rangeLoads start end =
-    Par.parallel_ $ forkSlicesOnce threads start end rangeLoads
-
-
 fork :: Shape sh
      => Int
      -> sh -> sh
