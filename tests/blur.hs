@@ -21,13 +21,6 @@ blur arr =
                          5  12  15  12   5
                          4   9  12   9   4
                          2   4   5   4   2 |]
-                --n5 n5
-                --(VecList [VecList [2, 4, 5, 4, 2],
-                --          VecList [4, 9,12, 9, 4],
-                --          VecList [5,12,15,12, 5],
-                --          VecList [4, 9,12, 9, 4],
-                --          VecList [2, 4, 5, 4, 2]])
-                --(\acc v i -> acc + i * v) 0
                 arr
     in dmap ((/ 159) . fromIntegral) convolved
 

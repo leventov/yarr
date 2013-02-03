@@ -1,21 +1,18 @@
 
 module Data.Yarr.Shape where
 
-import Prelude as P
+import Prelude as P hiding (foldl, foldr)
 import GHC.Exts
 
 import Control.DeepSeq
 
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector as V hiding (foldl, foldr)
+import Data.Yarr.Utils.LowLevelFolds
 import Data.Yarr.Utils.Touchable
 import Data.Yarr.Utils.Split
 
 
--- Can't reuse Dim from fixed-vector,
--- because it's parameter must be of kind * -> *
-type family Rank sh
-
-class (Eq sh, Show sh, NFData sh, Arity (Rank sh)) => Shape sh where
+class (Eq sh, Show sh, NFData sh) => Shape sh where
     zero :: sh
     size :: sh -> Int
     
@@ -34,32 +31,58 @@ class (Eq sh, Show sh, NFData sh, Arity (Rank sh)) => Shape sh where
 
     makeChunkRange :: Int -> sh -> sh -> (Int -> (sh, sh))
 
-    fill
-        :: (sh -> IO a)       -- get
-        -> (sh -> a -> IO ()) -- write
-        -> sh -> sh           -- start, end
-        -> IO ()
-    fill = unrolledFill n1 noTouch
+    foldl :: (b -> sh -> a -> IO b) -- Generalized reduce
+          -> b                      -- Zero
+          -> (sh -> IO a)           -- Get
+          -> sh -> sh               -- Start, end
+          -> IO b                   -- Result
 
-    dUnrolledFill
-        :: (sh -> IO a)       -- get
-        -> (sh -> a -> IO ()) -- write
-        -> sh -> sh           -- start, end
-        -> IO ()
-    dUnrolledFill = unrolledFill n4 noTouch
+    unrolledFoldl
+        :: forall a b uf. Arity uf
+        => uf                     -- Unroll factor
+        -> (a -> IO ())           -- Touch
+        -> (b -> sh -> a -> IO b) -- Generalized reduce
+        -> b                      -- Zero
+        -> (sh -> IO a)           -- Get
+        -> sh -> sh               -- Start, end
+        -> IO b                   -- Result
+
+    foldr :: (sh -> a -> b -> IO b) -- Generalized reduce
+          -> b                      -- Zero
+          -> (sh -> IO a)           -- Get
+          -> sh -> sh               -- Start, end
+          -> IO b                   -- Result
+
+    unrolledFoldr
+        :: forall a b uf. Arity uf
+        => uf                     -- Unroll factor
+        -> (a -> IO ())           -- Touch
+        -> (sh -> a -> b -> IO b) -- Generalized reduce
+        -> b                      -- Zero
+        -> (sh -> IO a)           -- Get
+        -> sh -> sh               -- Start, end
+        -> IO b                   -- Result
+
+    fill :: (sh -> IO a)       -- Get
+         -> (sh -> a -> IO ()) -- Write
+         -> sh -> sh           -- Start, end
+         -> IO ()
+    fill get write = foldl (\_ sh a -> write sh a) () get
 
     unrolledFill
         :: forall a uf. Arity uf
-        => uf                 -- unroll factor
-        -> (a -> IO ())       -- touch
-        -> (sh -> IO a)       -- get
-        -> (sh -> a -> IO ()) -- write
-        -> sh -> sh           -- start, end
+        => uf                 -- Unroll factor
+        -> (a -> IO ())       -- Touch
+        -> (sh -> IO a)       -- Get
+        -> (sh -> a -> IO ()) -- Write
+        -> sh -> sh           -- Start, end
         -> IO ()
+    unrolledFill unrollFactor tch get write =
+        unrolledFoldl unrollFactor tch (\_ sh a -> write sh a) () get
 
     {-# INLINE intersectBlocks #-}
     {-# INLINE fill #-}
-    {-# INLINE dUnrolledFill #-}
+    {-# INLINE unrolledFill #-}
 
 
 class Shape sh => BlockShape sh where
@@ -68,8 +91,6 @@ class Shape sh => BlockShape sh where
 
 
 type Dim1 = Int
-type instance Rank Dim1 = N1
-
 
 instance Shape Dim1 where
     zero = 0
@@ -87,14 +108,19 @@ instance Shape Dim1 where
             split = makeSplitIndex chunks start end
         in \ !c -> (split c, split (c + 1))
 
-    unrolledFill
-        :: forall a uf. Arity uf
-        => uf
-        -> (a -> IO ()) -> (Dim1 -> IO a)
-        -> (Dim1 -> a -> IO ())
-        -> (Dim1 -> Dim1 -> IO ())
-    unrolledFill tch get write bs =
-        \ (I# start#) (I# end#) -> unrolledFill# tch get write bs start# end#
+    foldl reduce z get =
+        \ (I# start#) (I# end#) -> foldl# reduce z get start# end#
+
+    unrolledFoldl unrollFactor tch reduce z get =
+        \ (I# start#) (I# end#) ->
+            unrolledFoldl# unrollFactor tch reduce z get start# end#
+
+    foldr reduce z get =
+        \ (I# start#) (I# end#) -> foldr# reduce z get start# end#
+
+    unrolledFoldr unrollFactor tch reduce z get =
+        \ (I# start#) (I# end#) ->
+            unrolledFoldr# unrollFactor tch reduce z get start# end# 
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
@@ -105,42 +131,10 @@ instance Shape Dim1 where
     {-# INLINE blockSize #-}
     {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
-    {-# INLINE unrolledFill #-}
-
-
-unrolledFill#
-    :: forall a uf. Arity uf
-    => uf
-    -> (a -> IO ()) -> (Dim1 -> IO a)
-    -> (Dim1 -> a -> IO ())
-    -> Int# -> Int#
-    -> IO ()
-{-# INLINE unrolledFill# #-}
-unrolledFill# unrollFactor tch get write start# end# =
-    let !(I# uf#) = arity unrollFactor
-        lim# = end# -# uf#
-        {-# INLINE go# #-}
-        go# i#
-            | i# ># lim# = rest# i#
-            | otherwise  = do
-                let is :: VecList uf Dim1
-                    is = V.generate (+ (I# i#))
-                as <- V.mapM get is
-                V.mapM_ tch as
-                V.zipWithM_ write is as
-                go# (i# +# uf#)
-
-        {-# INLINE rest# #-}
-        rest# i#
-            | i# >=# end# = return ()
-            | otherwise   = do
-                let i = (I# i#)
-                a <- get i
-                tch a
-                write i a
-                rest# (i# +# 1#)
-
-    in go# start#
+    {-# INLINE foldl #-}
+    {-# INLINE unrolledFoldl #-}
+    {-# INLINE foldr #-}
+    {-# INLINE unrolledFoldr #-}
 
 
 instance BlockShape Dim1 where
@@ -156,7 +150,6 @@ instance BlockShape Dim1 where
 
 
 type Dim2 = (Int, Int)
-type instance Rank Dim2 = N2
 
 instance Shape Dim2 where
     zero = (0, 0)
@@ -182,17 +175,60 @@ instance Shape Dim2 where
             range = makeChunkRange chunks sy ey
         in \c -> let (csy, cey) = range c in ((csy, sx), (cey, ex))
 
-    unrolledFill unrollFactor tch get write (sy, sx) (ey, ex) =
-        let {-# INLINE go #-}
-            go y | y >= ey   = return ()
-                 | otherwise = do
-                    unrolledFill
-                        unrollFactor tch
-                        (\x -> get (y, x))
-                        (\x a -> write (y, x) a)
-                        sx ex
-                    go (y + 1)
-        in go sy
+
+    foldl reduce z get =
+        \ (!sy, !sx) (!ey, !ex) ->
+            let {-# INLINE go #-}
+                go y b
+                    | y >= ey   = return b
+                    | otherwise = do
+                        b' <- foldl (\b x a -> reduce b (y, x) a) b
+                                    (\x -> get (y, x))
+                                    sx ex
+                        go (y + 1) b'
+            in go sy z
+
+    unrolledFoldl unrollFactor tch reduce z get =
+        \ (!sy, !sx) (!ey, !ex) ->
+            let {-# INLINE go #-}
+                go y b
+                    | y >= ey   = return b
+                    | otherwise = do
+                        b' <- unrolledFoldl
+                                unrollFactor tch
+                                (\b x a -> reduce b (y, x) a) b
+                                (\x -> get (y, x))
+                                sx ex
+                        go (y + 1) b'
+            in go sy z
+
+
+    foldr reduce z get =
+        \ (!sy, !sx) (!ey, !ex) ->
+            let {-# INLINE go #-}
+                go y b
+                    | y < sy    = return b
+                    | otherwise = do
+                        b' <- foldr (\x a b -> reduce (y, x) a b) b
+                                    (\x -> get (y, x))
+                                    sx ex
+                        go (y - 1) b'
+            in go (ey - 1) z
+
+    unrolledFoldr unrollFactor tch reduce z get =
+        \ (!sy, !sx) (!ey, !ex) ->
+            let {-# INLINE go #-}
+                go y b
+                    | y < sy    = return b
+                    | otherwise = do
+                        b' <- unrolledFoldr
+                                unrollFactor tch
+                                (\x a b -> reduce (y, x) a b)
+                                b
+                                (\x -> get (y, x))
+                                sx ex
+                        go (y - 1) b'
+            in go (ey - 1) z
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
@@ -203,7 +239,10 @@ instance Shape Dim2 where
     {-# INLINE blockSize #-}
     {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
-    {-# INLINE unrolledFill #-}
+    {-# INLINE foldl #-}
+    {-# INLINE unrolledFoldl #-}
+    {-# INLINE foldr #-}
+    {-# INLINE unrolledFoldr #-}
 
 
 instance BlockShape Dim2 where
@@ -272,7 +311,6 @@ dim2BlockFill blockSizeX blockSizeY tch get write =
 
 
 type Dim3 = (Int, Int, Int)
-type instance Rank Dim3 = N3
 
 instance Shape Dim3 where
     zero = (0, 0, 0)
@@ -307,17 +345,61 @@ instance Shape Dim3 where
         in \c -> let (csz, cez) = range c
                  in ((csz, sy, sx), (cez, ey, ex))
 
-    unrolledFill unrollFactor tch get write (sz, sy, sx) (ez, ey, ex) =
-        let {-# INLINE go #-}
-            go z | z >= ez   = return ()
-                 | otherwise = do
-                    unrolledFill
-                        unrollFactor tch
-                        (\(y, x) -> get (z, y, x))
-                        (\(y, x) a -> write (z, y, x) a)
-                        (sy, sx) (ey, ex)
-                    go (z + 1)
-        in go sz
+
+    foldl reduce zero get =
+        \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
+            let {-# INLINE go #-}
+                go z b
+                    | z >= ez   = return b
+                    | otherwise = do
+                        b' <- foldl
+                                (\b (y, x) a -> reduce b (z, y, x) a) b
+                                (\(y, x) -> get (z, y, x))
+                                (sy, sx) (ey, ex)
+                        go (z + 1) b'
+            in go sz zero
+
+    unrolledFoldl unrollFactor tch reduce zero get =
+        \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
+            let {-# INLINE go #-}
+                go z b
+                    | z >= ez   = return b
+                    | otherwise = do
+                        b' <- unrolledFoldl
+                                unrollFactor tch
+                                (\b (y, x) a -> reduce b (z, y, x) a) b
+                                (\(y, x) -> get (z, y, x))
+                                (sy, sx) (ey, ex)
+                        go (z + 1) b'
+            in go sz zero
+
+
+    foldr reduce zero get =
+        \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
+            let {-# INLINE go #-}
+                go z b
+                    | z < sz    = return b
+                    | otherwise = do
+                        b' <- foldr
+                                (\(y, x) a b -> reduce (z, y, x) a b) b
+                                (\(y, x) -> get (z, y, x))
+                                (sy, sx) (ey, ex)
+                        go (z - 1) b'
+            in go (ez - 1) zero
+
+    unrolledFoldr unrollFactor tch reduce zero get =
+        \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
+            let {-# INLINE go #-}
+                go z b
+                    | z < sz    = return b
+                    | otherwise = do
+                        b' <- unrolledFoldr
+                                unrollFactor tch
+                                (\(y, x) a b -> reduce (z, y, x) a b) b
+                                (\(y, x) -> get (z, y, x))
+                                (sy, sx) (ey, ex)
+                        go (z - 1) b'
+            in go (ez - 1) zero
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
@@ -328,4 +410,7 @@ instance Shape Dim3 where
     {-# INLINE blockSize #-}
     {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
-    {-# INLINE unrolledFill #-}
+    {-# INLINE foldl #-}
+    {-# INLINE unrolledFoldl #-}
+    {-# INLINE foldr #-}
+    {-# INLINE unrolledFoldr #-}

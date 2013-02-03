@@ -17,6 +17,7 @@ import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
 import Data.Yarr.Utils.Fork
 import Data.Yarr.Utils.Parallel
+import Data.Yarr.Utils.Touchable
 
 
 class (NFData (UArray r sh a), Shape sh) => Regular r sh a where
@@ -137,6 +138,14 @@ class (VecRegular r sh slr v e, USource r sh (v e), USource slr sh e) =>
 parallelSlices_ threads rangeLoads start end =
     parallel_ $ forkSlicesOnce threads start end rangeLoads
 
+dUnrolledFill
+    :: Shape sh
+    => (sh -> IO a)
+    -> (sh -> a -> IO ())
+    -> sh -> sh
+    -> IO ()
+{-# INLINE dUnrolledFill #-}
+dUnrolledFill = unrolledFill n4 noTouch
 
 
 class (USource r sh a, USource fr sh b) => Fusion r fr sh a b where

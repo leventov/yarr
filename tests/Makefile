@@ -1,6 +1,5 @@
 GHCFLAGS = -Odph -rtsopts -threaded -fno-liberate-case -funbox-strict-fields \
--fexpose-all-unfoldings -funfolding-keeness-factor1000 -fllvm -optlo-O3 \
--optlo-vectorize -optlo-vectorize-loops
+-fexpose-all-unfoldings -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optlo-p
 
 DDUMP_CORE = -ddump-simpl -dsuppress-all
 
@@ -22,5 +21,5 @@ blur: blur.hs
 	gcc -c $(GCCFLAGS) $<
 
 clean:
-	rm *.o *.hi ct blur ct.as blur.as
+	rm *.o *.hi t-* ct blur ct.as blur.as
     

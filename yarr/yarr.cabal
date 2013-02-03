@@ -49,6 +49,8 @@ Library
         Data.Yarr.Utils.Touchable
         Data.Yarr.Utils.Parallel
         Data.Yarr.Utils.Split
+        Data.Yarr.Utils.LowLevelFolds
 
     other-modules:
+        -- re-exported in Utils.FixedVector
         Data.Yarr.Utils.VecTuple
