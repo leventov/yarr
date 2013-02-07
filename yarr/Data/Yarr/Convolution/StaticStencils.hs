@@ -2,17 +2,18 @@
 module Data.Yarr.Convolution.StaticStencils where
 
 import Prelude as P
+import Control.Monad
 import Data.Char (isSpace)
 
 import Language.Haskell.TH hiding (Arity)
 import Language.Haskell.TH.Quote
 
-import Data.Yarr.Base
+import Data.Yarr.Base as B
 import Data.Yarr.Shape
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Convolution.Repr
 import Data.Yarr.Utils.FixedVector as V
-
+import Data.Yarr.Utils.Primitive
 
 data Dim1Stencil size a b c =
     Dim1Stencil
@@ -45,7 +46,7 @@ dim2St :: QuasiQuoter
 dim2St = QuasiQuoter parseDim2Stencil undefined undefined undefined
 
 parseDim2Stencil s =
-    let ls = filter (not . all isSpace) (lines s)
+    let ls = filter (not . P.all isSpace) (lines s)
         values :: [[Integer]]
         values = P.map (P.map read . words) ls
 
@@ -74,27 +75,24 @@ justNonZero v =
 
 
 dConvolveDim1WithStaticStencil
-    :: forall s so eo r a b c. (StencilOffsets s so eo)
+    :: (StencilOffsets s so eo, USource D l Dim1 a)
     => Dim1Stencil s a b c
-    -> UArray D Dim1 a
-    -> UArray CV Dim1 c
+    -> UArray D l Dim1 a
+    -> UArray CV CV Dim1 c
 {-# INLINE dConvolveDim1WithStaticStencil #-}
 dConvolveDim1WithStaticStencil =
     convolveDim1WithStaticStencil
         (\arr len ->
             let !maxI = len - 1
-            in \i -> linearIndex arr (max 0 (min maxI i)))
+            in linearIndex arr <=< (clampM' 0 maxI))
 
 
 convolveDim1WithStaticStencil
-    :: forall s so eo r a b c. (StencilOffsets s so eo)
-    => (UArray D Dim1 a ->
-        Dim1 ->
-        Dim1 ->
-        IO a)
+    :: forall l s so eo a b c. (StencilOffsets s so eo, USource D l Dim1 a)
+    => (UArray D l Dim1 a -> Dim1 -> Dim1 -> IO a)
     -> Dim1Stencil s a b c
-    -> UArray D Dim1 a
-    -> UArray CV Dim1 c
+    -> UArray D l Dim1 a
+    -> UArray CV CV Dim1 c
 {-# INLINE convolveDim1WithStaticStencil #-}
 convolveDim1WithStaticStencil
         borderIndex (Dim1Stencil _ stencil reduce z) arr =
@@ -115,39 +113,97 @@ convolveDim1WithStaticStencil
 
         !len = extent arr
     in Convoluted
-            len (touch arr)
+            len (B.touch arr)
             (sget (borderIndex arr len))
             (startOff, len - endOff) (sget (linearIndex arr))
 
 
 
-dConvolveDim2WithStaticStencil
-    :: forall sx sox eox sy soy eoy r a b c.
-       (StencilOffsets sx sox eox, StencilOffsets sy soy eoy)
+dim2OutClamp
+    :: USource D l Dim2 a
+    => UArray D l Dim2 a
+    -> Dim2 -> Dim2
+    -> IO a
+{-# INLINE dim2OutClamp #-}
+dim2OutClamp arr (shY, shX) =
+    let !maxY = shY - 1
+        !maxX = shX - 1
+    in \(y, x) -> do
+            y' <- clampM' 0 maxY y
+            x' <- clampM' 0 maxX x
+            index arr (y', x')
+
+
+dConvolveShDim2WithStaticStencil
+    :: (StencilOffsets sx sox eox, StencilOffsets sy soy eoy)
     => Dim2Stencil sx sy a b c
-    -> UArray D Dim2 a
-    -> UArray CV Dim2 c
-{-# INLINE dConvolveDim2WithStaticStencil #-}
-dConvolveDim2WithStaticStencil =
-    convolveDim2WithStaticStencil
-        (\arr (shY, shX) ->
-            let !maxY = shY - 1
-                !maxX = shX - 1
-            in \(y, x) -> index arr (max 0 (min maxY y), max 0 (min maxX x)))
+    -> UArray D SH Dim2 a
+    -> UArray CV CV Dim2 c
+{-# INLINE dConvolveShDim2WithStaticStencil #-}
+dConvolveShDim2WithStaticStencil =
+    convolveShDim2WithStaticStencil dim2OutClamp
 
-
-convolveDim2WithStaticStencil
-    :: forall sx sox eox sy soy eoy r a b c.
+convolveShDim2WithStaticStencil
+    :: forall sx sox eox sy soy eoy a b c.
        (StencilOffsets sx sox eox, StencilOffsets sy soy eoy)
-    => (UArray D Dim2 a ->
-        Dim2 ->
-        Dim2 ->
-        IO a)
+    => (UArray D SH Dim2 a -> Dim2 -> Dim2 -> IO a)
     -> Dim2Stencil sx sy a b c
-    -> UArray D Dim2 a
-    -> UArray CV Dim2 c
-{-# INLINE convolveDim2WithStaticStencil #-}
-convolveDim2WithStaticStencil
+    -> UArray D SH Dim2 a
+    -> UArray CV CV Dim2 c
+{-# INLINE convolveShDim2WithStaticStencil #-}
+convolveShDim2WithStaticStencil
+        borderIndex (Dim2Stencil _ _ stencil reduce z) arr =
+
+    let !startOffX = arity (undefined :: sox)
+        !endOffX = arity (undefined :: eox)
+        
+        !startOffY = arity (undefined :: soy)
+        !endOffY = arity (undefined :: eoy)
+
+        {-# INLINE sget #-}
+        sget get =
+            \ (y, x) ->
+                V.iifoldM
+                    (-startOffY)
+                    succ
+                    (\acc iy xv ->
+                        V.iifoldM
+                            (-startOffX)
+                            succ
+                            (\acc ix b -> do
+                                a <- get (y + iy, x + ix)
+                                reduce acc a b)
+                            acc
+                            xv)
+                    z
+                    stencil
+
+        !sh@(shY, shX) = extent arr
+        tl = (startOffY, startOffX)
+        br = (shY - endOffY, shX - endOffX)
+
+    in Convoluted sh (B.touch arr)
+                  (sget (borderIndex arr sh)) (tl, br) (sget (index arr))
+
+
+dConvolveLinearDim2WithStaticStencil
+    :: (StencilOffsets sx sox eox, StencilOffsets sy soy eoy)
+    => Dim2Stencil sx sy a b c
+    -> UArray D L Dim2 a
+    -> UArray CV CV Dim2 c
+{-# INLINE dConvolveLinearDim2WithStaticStencil #-}
+dConvolveLinearDim2WithStaticStencil =
+    convolveLinearDim2WithStaticStencil dim2OutClamp
+
+convolveLinearDim2WithStaticStencil
+    :: forall sx sox eox sy soy eoy a b c.
+       (StencilOffsets sx sox eox, StencilOffsets sy soy eoy)
+    => (UArray D L Dim2 a -> Dim2 -> Dim2 -> IO a)
+    -> Dim2Stencil sx sy a b c
+    -> UArray D L Dim2 a
+    -> UArray CV CV Dim2 c
+{-# INLINE convolveLinearDim2WithStaticStencil #-}
+convolveLinearDim2WithStaticStencil
         borderIndex (Dim2Stencil _ _ stencil reduce z) arr =
 
     let !startOffX = arity (undefined :: sox)
@@ -177,7 +233,7 @@ convolveDim2WithStaticStencil
         !sh@(shY, shX) = extent arr
 
         {-# INLINE slget #-}
-        slget (y, x) =
+        slget !(!y, !x) =
             V.iifoldM
                 (-startOffY)
                 succ
@@ -194,15 +250,10 @@ convolveDim2WithStaticStencil
                 z
                 stencil
 
-        {-# INLINE cget #-}
-        cget = if shapeIndexingPreferred arr
-                    then sget (index arr)
-                    else slget
-
         tl = (startOffY, startOffX)
         br = (shY - endOffY, shX - endOffX)
 
-    in Convoluted sh (touch arr) (sget (borderIndex arr sh)) (tl, br) cget
+    in Convoluted sh (B.touch arr) (sget (borderIndex arr sh)) (tl, br) slget
 
  
 stencilOffsets 1 = (0, 0)

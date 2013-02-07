@@ -8,22 +8,24 @@ import Control.DeepSeq
 
 import Data.Yarr.Utils.FixedVector as V hiding (foldl, foldr)
 import Data.Yarr.Utils.LowLevelFolds
-import Data.Yarr.Utils.Touchable
+import Data.Yarr.Utils.Primitive
 import Data.Yarr.Utils.Split
 
+type Fill sh a = (sh -> IO a) -> (sh -> a -> IO ()) -> sh -> sh -> IO ()
 
-class (Eq sh, Show sh, NFData sh) => Shape sh where
+class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
     zero :: sh
     size :: sh -> Int
     
     fromIndex :: sh -> Int -> sh
     toIndex :: sh -> sh -> Int
     
-    intersect :: [sh] -> sh
-    complement :: [sh] -> sh
-    intersectBlocks :: [(sh, sh)] -> (sh, sh)
+    intersect :: (Arity n, n ~ S n0) => VecList n sh -> sh
+    complement :: (Arity n, n ~ S n0) => VecList n sh -> sh
+    intersectBlocks :: (Arity n, n ~ S n0) => VecList n (sh, sh) -> (sh, sh)
     intersectBlocks blocks =
-        let (ss, es) = unzip blocks
+        let ss = V.map fst blocks
+            es = V.map snd blocks
         in (complement ss, intersect es)
 
     blockSize :: (sh, sh) -> Int
@@ -63,30 +65,19 @@ class (Eq sh, Show sh, NFData sh) => Shape sh where
         -> sh -> sh               -- Start, end
         -> IO b                   -- Result
 
-    fill :: (sh -> IO a)       -- Get
-         -> (sh -> a -> IO ()) -- Write
-         -> sh -> sh           -- Start, end
-         -> IO ()
-    fill get write = foldl (\_ sh a -> write sh a) () get
+    fill :: Fill sh a
 
     unrolledFill
         :: forall a uf. Arity uf
         => uf                 -- Unroll factor
         -> (a -> IO ())       -- Touch
-        -> (sh -> IO a)       -- Get
-        -> (sh -> a -> IO ()) -- Write
-        -> sh -> sh           -- Start, end
-        -> IO ()
-    unrolledFill unrollFactor tch get write =
-        unrolledFoldl unrollFactor tch (\_ sh a -> write sh a) () get
-
+        -> Fill sh a
     {-# INLINE intersectBlocks #-}
-    {-# INLINE fill #-}
-    {-# INLINE unrolledFill #-}
 
 
-class Shape sh => BlockShape sh where
-    clipBlock :: (sh, sh) -> (sh, sh) -> [(sh, sh)]
+class (Shape sh, Arity (BC sh)) => BlockShape sh where
+    type BC sh
+    clipBlock :: (sh, sh) -> (sh, sh) -> VecList (BC sh) (sh, sh)
 
 
 
@@ -97,8 +88,8 @@ instance Shape Dim1 where
     size = id
     fromIndex _ i = i
     toIndex _ i = i
-    intersect = P.minimum
-    complement = P.maximum
+    intersect = V.minimum
+    complement = V.maximum
 
     blockSize (s, e) = e - s
     insideBlock (s, e) i = i >= s && i < e
@@ -107,6 +98,10 @@ instance Shape Dim1 where
         let {-# INLINE split #-}
             split = makeSplitIndex chunks start end
         in \ !c -> (split c, split (c + 1))
+
+    fill get write = \ (I# start#) (I# end#) -> fill# get write start# end#
+    unrolledFill uf tch get write =
+        \ (I# start#) (I# end#) -> unrolledFill# uf tch get write start# end#
 
     foldl reduce z get =
         \ (I# start#) (I# end#) -> foldl# reduce z get start# end#
@@ -131,6 +126,10 @@ instance Shape Dim1 where
     {-# INLINE blockSize #-}
     {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
+
+    {-# INLINE fill #-}
+    {-# INLINE unrolledFill #-}
+
     {-# INLINE foldl #-}
     {-# INLINE unrolledFoldl #-}
     {-# INLINE foldr #-}
@@ -138,11 +137,10 @@ instance Shape Dim1 where
 
 
 instance BlockShape Dim1 where
+    type BC Dim1 = N2
     clipBlock outer@(os, oe) inner =
-        let intersection@(is, ie) = intersectBlocks [inner, outer]
-        in if blockSize intersection <= 0
-                then [outer]
-                else [(os, is), (ie, oe)]
+        let intersection@(is, ie) = intersectBlocks (vl_2 inner outer)
+        in (vl_2 (os, is) (ie, oe))
 
     {-# INLINE clipBlock #-}
 
@@ -158,12 +156,14 @@ instance Shape Dim2 where
     toIndex (_, w) (y, x) = y * w + x
     
     intersect shapes =
-        let (hs, ws) = unzip shapes
-        in (P.minimum hs, P.minimum ws)
+        let hs = V.map fst shapes
+            ws = V.map snd shapes
+        in (V.minimum hs, V.minimum ws)
 
     complement shapes =
-        let (hs, ws) = unzip shapes
-        in (P.maximum hs, P.maximum ws)
+        let hs = V.map fst shapes
+            ws = V.map snd shapes
+        in (V.maximum hs, V.maximum ws)
 
     blockSize ((sy, sx), (ey, ex)) = (ey - sy) * (ex - sx)
 
@@ -175,6 +175,31 @@ instance Shape Dim2 where
             range = makeChunkRange chunks sy ey
         in \c -> let (csy, cey) = range c in ((csy, sx), (cey, ex))
 
+    fill get write =
+        \ (!sy, !sx) (!ey, !ex) ->
+            let {-# INLINE go #-}
+                go y | y >= ey   = return ()
+                     | otherwise = do
+                        fill (\x -> get (y, x))
+                             (\x a -> write (y, x) a)
+                             sx ex
+                        go (y + 1)
+            in go sy
+
+    unrolledFill unrollFactor tch = 
+        let {-# INLINE actualFill #-}
+            actualFill dim1Fill get write =
+                \ (!sy, !sx) (!ey, !ex) ->
+                    let {-# INLINE go #-}
+                        go y | y >= ey   = return ()
+                             | otherwise = do
+                                dim1Fill
+                                    (\x -> get (y, x))
+                                    (\x a -> write (y, x) a)
+                                    sx ex
+                                go (y + 1)
+                    in go sy
+        in \get write -> actualFill (unrolledFill unrollFactor tch) get write
 
     foldl reduce z get =
         \ (!sy, !sx) (!ey, !ex) ->
@@ -239,6 +264,10 @@ instance Shape Dim2 where
     {-# INLINE blockSize #-}
     {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
+
+    {-# INLINE fill #-}
+    {-# INLINE unrolledFill #-}
+
     {-# INLINE foldl #-}
     {-# INLINE unrolledFoldl #-}
     {-# INLINE foldr #-}
@@ -246,15 +275,14 @@ instance Shape Dim2 where
 
 
 instance BlockShape Dim2 where
+    type BC Dim2 = N4
     clipBlock outer@((osy, osx), (oey, oex)) inner =
         let intersection@((isy, isx), (iey, iex)) =
-                intersectBlocks [inner, outer]
-        in if blockSize intersection <= 0
-                then [outer]
-                else [((osy, isx), (isy, oex)),
-                      ((isy, iex), (oey, oex)),
-                      ((iey, osx), (oey, iex)),
-                      ((osy, osx), (iey, isx))]
+                intersectBlocks (vl_2 inner outer)
+        in (vl_4 ((osy, isx), (isy, oex))
+                 ((isy, iex), (oey, oex))
+                 ((iey, osx), (oey, iex))
+                 ((osy, osx), (iey, isx)))
 
     {-# INLINE clipBlock #-}
 
@@ -270,42 +298,39 @@ dim2BlockFill
     -> IO ()
 {-# INLINE dim2BlockFill #-}
 dim2BlockFill blockSizeX blockSizeY tch get write =
-    \ start@(sy, sx) end@(ey, ex) ->
-        let !bx = arity blockSizeX
-            !limX = ex - bx
+    \ ((I# sy#), sx@(I# sx#)) end@((I# ey#), ex@(I# ex#)) ->
+        let !(I# bx#) = arity blockSizeX
+            limX# = ex# -# bx#
 
-            !by = arity blockSizeY
-            !limY = ey - by
+            !(I# by#) = arity blockSizeY
+            limY# = ey# -# by#
 
-            {-# INLINE goY #-}
-            goY !y | y > limY  =
-                        unrolledFill blockSizeX tch get write (y, sx) end
-                   | otherwise = do
-                        goX y (y + by)
-                        goY (y + by)
+            {-# INLINE goY# #-}
+            goY# y# | y# ># limY# = fill get write ((I# y#), sx) end
+                   | otherwise    = do
+                        let y = I# y#
+                            ys :: VecList bsy Int
+                            ys = V.generate (+ y)
 
-            {-# INLINE goX #-}
-            goX !y !stripEndY =
-                let ys :: VecList bsy Int
-                    !ys = V.generate (+ y)
+                            {-# INLINE go# #-}
+                            go# x#
+                                | x# ># limX# =
+                                    fill get write
+                                         (y, (I# x#)) (I# (y# +# by#), ex)
+                                | otherwise   = do
+                                    let xs :: VecList bsx Int
+                                        xs = V.generate (+ (I# x#))
+                                        is = V.map (\y -> V.map (\x -> (y, x)) xs) ys
 
-                    {-# INLINE go #-}
-                    go !x
-                        | x > limX  =
-                            unrolledFill n1 tch get write (y, x) (stripEndY, ex)
-                        | otherwise = do
-                            let xs :: VecList bsx Int
-                                xs = V.generate (+ x)
-                                is = V.map (\y -> V.map (\x -> (y, x)) xs) ys
+                                    as <- V.mapM (V.mapM get) is
+                                    V.mapM_ (V.mapM_ tch) as
+                                    V.zipWithM_ (V.zipWithM_ write) is as
 
-                            as <- V.mapM (V.mapM get) is
-                            V.mapM_ (V.mapM_ tch) as
-                            V.zipWithM_ (V.zipWithM_ write) is as
+                                    go# (x# +# bx#)
+                        go# sx#
+                        goY# (y# +# by#)
 
-                            go (x + bx)
-                in go sx
-
-        in goY sy
+        in goY# sy#
 
 
 
@@ -324,12 +349,16 @@ instance Shape Dim3 where
     toIndex (_, h, w) (z, y, x) = z * (h * w) + y * w + x
 
     intersect shapes =
-        let (ds, hs, ws) = unzip3 shapes
-        in (P.minimum ds, P.minimum hs, P.minimum ws)
+        let ds = V.map (\(d, _, _) -> d) shapes
+            hs = V.map (\(_, h, _) -> h) shapes
+            ws = V.map (\(_, _, w) -> w) shapes
+        in (V.minimum ds, V.minimum hs, V.minimum ws)
 
     complement shapes =
-        let (ds, hs, ws) = unzip3 shapes
-        in (P.maximum ds, P.maximum hs, P.maximum ws)
+        let ds = V.map (\(d, _, _) -> d) shapes
+            hs = V.map (\(_, h, _) -> h) shapes
+            ws = V.map (\(_, _, w) -> w) shapes
+        in (V.maximum ds, V.maximum hs, V.maximum ws)
 
     blockSize ((sz, sy, sx), (ez, ey, ex)) =
         (ez - sz) * (ey - sy) * (ex - sx)
@@ -345,6 +374,35 @@ instance Shape Dim3 where
         in \c -> let (csz, cez) = range c
                  in ((csz, sy, sx), (cez, ey, ex))
 
+
+    fill get write =
+        \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
+            let {-# INLINE go #-}
+                go z | z >= ez   = return ()
+                     | otherwise = do
+                        fill
+                             (\(y, x) -> get (z, y, x))
+                             (\(y, x) a -> write (z, y, x) a)
+                             (sy, sx) (ey, ex)
+                        go (z + 1)
+            in go sz
+
+    unrolledFill unrollFactor tch =
+        let !uf = arity unrollFactor
+            {-# INLINE actualFill #-}
+            actualFill _ get write =
+                \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
+                    let {-# INLINE go #-}
+                        go z | z >= ez   = return ()
+                             | otherwise = do
+                                unrolledFill
+                                    unrollFactor tch
+                                    (\(y, x) -> get (z, y, x))
+                                    (\(y, x) a -> write (z, y, x) a)
+                                    (sy, sx) (ey, ex)
+                                go (z + 1)
+                    in go sz
+        in actualFill uf
 
     foldl reduce zero get =
         \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
@@ -410,7 +468,13 @@ instance Shape Dim3 where
     {-# INLINE blockSize #-}
     {-# INLINE insideBlock #-}
     {-# INLINE makeChunkRange #-}
+
+    {-# INLINE fill #-}
+    {-# INLINE unrolledFill #-}
+
     {-# INLINE foldl #-}
     {-# INLINE unrolledFoldl #-}
     {-# INLINE foldr #-}
     {-# INLINE unrolledFoldr #-}
+
+

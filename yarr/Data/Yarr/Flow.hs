@@ -8,39 +8,39 @@ import Data.Yarr.Utils.FixedVector as V
 
 
 traverse
-    :: (USource r sh a, Shape sh')
+    :: (USource r l sh a, Shape sh')
     => (sh -> sh')
     -> ((sh -> IO a) -> sh' -> IO b)
-    -> (UArray r sh a) -> UArray D sh' b
+    -> UArray r l sh a -> UArray D SH sh' b
 {-# INLINE traverse #-}
 traverse transformShape newElem arr =
     let newSh = transformShape (extent arr)
-    in fromShapeFunction newSh (touch arr) (newElem (index arr))
+    in ShapeDelayed newSh (touch arr) (newElem (index arr))
 
 
 zipElems
-    :: (Vector v a, DefaultFusion r fr sh (v a) b)
+    :: (Vector v a, DefaultFusion r fr l sh (v a) b)
     => Fn (Dim v) a b
-    -> UArray r sh (v a)
-    -> UArray fr sh b
+    -> UArray r l sh (v a)
+    -> UArray fr l sh b
 {-# INLINE zipElems #-}
 zipElems fn arr = dmap (\v -> inspect v (Fun fn)) arr
 
 
 mapElems
-    :: (VecRegular r sh slr v a, DefaultFusion slr fslr sh a b,
+    :: (VecRegular r slr l sh v a, DefaultFusion slr fslr l sh a b,
         Vector v b)
     => (a -> b)
-    -> UArray r sh (v a)
-    -> UArray (SE fslr) sh (v b)
+    -> UArray r l sh (v a)
+    -> UArray (SE fslr) l sh (v b)
 {-# INLINE mapElems #-}
-mapElems = mapElems'
+mapElems f = dmapElems (V.replicate f)
 
-mapElems'
-    :: (VecRegular r sh slr v a, DefaultFusion slr fslr sh a b,
-        Vector v2 b, Dim v ~ Dim v2)
-    => (a -> b)
-    -> UArray r sh (v a)
-    -> UArray (SE fslr) sh (v2 b)
-{-# INLINE mapElems' #-}
-mapElems' f = dmapElems (V.replicate f)
+mapElemsM
+    :: (VecRegular r slr l sh v a, DefaultFusion slr fslr l sh a b,
+        Vector v b)
+    => (a -> IO b)
+    -> UArray r l sh (v a)
+    -> UArray (SE fslr) l sh (v b)
+{-# INLINE mapElemsM #-}
+mapElemsM f = dmapElemsM (V.replicate f)

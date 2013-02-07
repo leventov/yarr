@@ -4,6 +4,58 @@ module Data.Yarr.Utils.LowLevelFolds where
 import GHC.Exts
 import Data.Yarr.Utils.FixedVector as V
 
+
+fill# :: (Int -> IO a)
+      -> (Int -> a -> IO ())
+      -> Int# -> Int#
+      -> IO ()
+{-# INLINE fill# #-}
+fill# get write start# end# =
+    let {-# INLINE go# #-}
+        go# i#
+            | i# >=# end# = return ()
+            | otherwise   = do
+                let i = (I# i#)
+                a <- get i
+                write i a
+                go# (i# +# 1#)
+    in go# start#
+    
+unrolledFill#
+    :: forall a uf. Arity uf
+    => uf
+    -> (a -> IO ())
+    -> (Int -> IO a)
+    -> (Int -> a -> IO ())
+    -> Int# -> Int#
+    -> IO ()
+{-# INLINE unrolledFill# #-}
+unrolledFill# unrollFactor tch get write start# end# =
+    let !(I# uf#) = arity unrollFactor
+        lim# = end# -# uf#
+        {-# INLINE go# #-}
+        go# i#
+            | i# ># lim# = rest# i#
+            | otherwise  = do
+                let is :: VecList uf Int
+                    is = V.generate (+ (I# i#))
+                as <- V.mapM get is
+                V.mapM_ tch as
+                V.zipWithM_ write is as
+                go# (i# +# uf#)
+
+        {-# INLINE rest# #-}
+        rest# i#
+            | i# >=# end# = return ()
+            | otherwise   = do
+                let i = (I# i#)
+                a <- get i
+                tch a
+                write i a
+                rest# (i# +# 1#)
+    in go# start#
+
+
 foldl#
     :: (b -> Int -> a -> IO b)
     -> b
@@ -33,7 +85,7 @@ unrolledFoldl#
     -> IO b
 {-# INLINE unrolledFoldl# #-}
 unrolledFoldl# unrollFactor tch reduce z get start# end# =
-    let (I# uf#) = arity unrollFactor
+    let !(I# uf#) = arity unrollFactor
         lim# = end# -# uf#
         {-# INLINE go# #-}
         go# i# b
@@ -90,7 +142,7 @@ unrolledFoldr#
     -> IO b
 {-# INLINE unrolledFoldr# #-}
 unrolledFoldr# unrollFactor tch reduce z get start# end# =
-    let (I# uf#) = arity unrollFactor
+    let !(I# uf#) = arity unrollFactor
         lim# = start# +# uf# -# 1#
         {-# INLINE go# #-}
         go# i# b
@@ -116,3 +168,4 @@ unrolledFoldr# unrollFactor tch reduce z get start# end# =
                 rest# (i# -# 1#) b'
 
     in go# (end# -# 1#) z
+

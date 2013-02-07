@@ -5,7 +5,10 @@ import Prelude as P
 import Control.Monad
 
 import Data.Yarr.Base as B
+    hiding (rangeLoadP, rangeLoadS, rangeLoadSlicesP, rangeLoadSlicesS)
 import Data.Yarr.Shape as S
+import Foreign
+import Data.Yarr.Repr.Foreign
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
 import Data.Yarr.Utils.FixedVector as V
@@ -16,9 +19,9 @@ import Data.Yarr.Utils.Split
 
 data CV
 
-instance Shape sh => Regular CV sh a where
+instance Shape sh => Regular CV CV sh a where
 
-    data UArray CV sh a =
+    data UArray CV CV sh a =
         Convoluted {
             getExtent :: !sh,
             getTouch :: (IO ()),
@@ -27,179 +30,34 @@ instance Shape sh => Regular CV sh a where
             centerGet :: (sh -> IO a)}
 
     extent = getExtent
-    shapeIndexingPreferred _ = True
     touch = getTouch
 
     {-# INLINE extent #-}
-    {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}
 
-
-instance Shape sh => NFData (UArray CV sh a) where
+instance Shape sh => NFData (UArray CV CV sh a) where
     rnf (Convoluted sh tch bget center cget) =
         sh `deepseq` tch `seq` bget `seq` center `deepseq` cget `seq` ()
     {-# INLINE rnf #-}
 
 
-
-instance BlockShape sh => USource CV sh a where
+instance Shape sh => USource CV CV sh a where
     index (Convoluted _ _ bget center cget) sh =
         if insideBlock center sh
             then cget sh
             else bget sh
 
-    rangeLoadP threads = rangeLoadConvolutedP threads S.fill
-    rangeLoadS = rangeLoadConvolutedS S.fill
-
     {-# INLINE index #-}
-    {-# INLINE rangeLoadP #-}
-    {-# INLINE rangeLoadS #-}
-
-rangeLoadConvolutedP
-    :: (BlockShape sh, UTarget tr sh a)
-    => Int
-    -> ((sh -> IO a) ->
-        (sh -> a -> IO ()) ->
-        sh -> sh ->
-        IO ())
-    -> UArray CV sh a
-    -> UArray tr sh a
-    -> sh -> sh
-    -> IO ()
-{-# INLINE rangeLoadConvolutedP #-}
-rangeLoadConvolutedP
-        threads
-        blockFill
-        arr@(Convoluted _ _ bget center cget) tarr
-        start end =
-
-    let loadRange = (start, end)
-        loadCenter@(cs, ce) = intersectBlocks [center, loadRange]
-
-        wr = write tarr
-        
-        threadWorks =
-            if blockSize loadCenter <= 0
-
-                then fork threads start end (S.fill bget wr)
-                
-                else
-                    let centerWorks = fork threads cs ce (blockFill cget wr)
-
-                        shavings = clipBlock loadRange loadCenter
-                        borders = filter ((> 0) . blockSize) shavings
-                        threadBorders = evenChunks borders threads
-
-                        {-# INLINE threadWork #-}
-                        threadWork centerWork borders = do
-                            centerWork
-                            P.mapM_
-                                (\(bs, be) -> S.fill bget wr bs be)
-                                borders
-
-                    in P.zipWith threadWork centerWorks threadBorders
-                                    
-    in parallel_ threadWorks
 
 
-rangeLoadConvolutedS
-    :: (BlockShape sh, UTarget tr sh a)
-    => ((sh -> IO a) ->
-        (sh -> a -> IO ()) ->
-        sh -> sh ->
-        IO ())
-    -> UArray CV sh a
-    -> UArray tr sh a
-    -> sh -> sh
-    -> IO ()
-{-# INLINE rangeLoadConvolutedS #-}
-rangeLoadConvolutedS
-        blockFill
-        arr@(Convoluted _ _ bget center cget) tarr
-        start end = do
-            
-    let loadRange = (start, end)
-        loadCenter@(cs, ce) = intersectBlocks [center, loadRange]
-
-        shavings = clipBlock loadRange loadCenter
-        bounds = filter ((> 0) . blockSize) shavings
-
-        wr = write tarr
-
-    blockFill cget wr cs ce
-    P.mapM_ (\(bs, be) -> S.fill bget wr bs be) bounds
-
-
-
-instance (BlockShape sh, Vector v e) => UVecSource (SE CV) sh CV v e where
-    rangeLoadSlicesP threads = rangeLoadConvolutedSlicesP threads S.fill
-    {-# INLINE rangeLoadSlicesP #-}
-
-
-rangeLoadConvolutedSlicesP
-    :: (BlockShape sh,
-        Vector v a, UVecTarget tr sh tslr v2 a, Dim v ~ Dim v2)
-    => Int
-    -> ((sh -> IO a) ->
-        (sh -> a -> IO ()) ->
-        sh -> sh ->
-        IO ())
-    -> UArray (SE CV) sh (v a)
-    -> UArray tr sh (v2 a)
-    -> sh -> sh
-    -> IO ()
-{-# INLINE rangeLoadConvolutedSlicesP #-}
-rangeLoadConvolutedSlicesP threads blockFill separateArr tarr start end =
-    let convolutedSlices = slices separateArr
-
-        loadRange = (start, end)
-        centers = V.map center convolutedSlices
-        loadCenters = V.map (\c -> intersectBlocks [loadRange, c]) centers
-
-        writes = V.map write (slices tarr)
-        eachElem f = V.zipWith3 f convolutedSlices loadCenters writes
-
-
-        {-# INLINE centerWorks #-}
-        centerWorks sl (cs, ce) wr =
-            fork threads cs ce (blockFill (centerGet sl) wr)
-
-        allCenterWorks = V.foldl (++) [] (eachElem centerWorks)
-
-
-        {-# INLINE borderWorks #-}
-        borderWorks sl loadCenter wr =
-            let shavings = clipBlock loadRange loadCenter
-                borders = filter ((> 0) . blockSize) shavings
-            in P.map (\(bs, be) -> S.fill (borderGet sl) wr bs be) borders
-
-        allBorders = V.foldl (++) [] (eachElem borderWorks)
-
-        threadCenterWorks = evenChunks allCenterWorks threads
-        threadBorderWorks = evenChunks allBorders threads
-
-        {-# INLINE threadWork #-}
-        threadWork centerWorks borderWorks = do
-            P.sequence_ centerWorks
-            P.sequence_ borderWorks
-
-        threadWorks = P.zipWith threadWork threadCenterWorks threadBorderWorks
-
-    in parallel_ threadWorks
-
-
-
-instance (BlockShape sh, USource CV sh a, USource CV sh b) =>
-        Fusion CV CV sh a b where
+instance Shape sh => Fusion CV CV CV sh a b where
     fmapM f (Convoluted sh tch bget center cget) =
         Convoluted sh tch (f <=< bget) center (f <=< cget)
 
     fzipM fun arrs =
-        let shapes = toList $ V.map extent arrs
-            sh = intersect shapes
+        let sh = intersect $ V.map extent arrs
 
-            centers = toList $ V.map center arrs
-            ctr = intersectBlocks centers
+            ctr = intersectBlocks $ V.map center arrs
 
             tch = V.mapM_ B.touch arrs
 
@@ -220,5 +78,187 @@ instance (BlockShape sh, USource CV sh a, USource CV sh b) =>
     {-# INLINE fmapM #-}
     {-# INLINE fzipM #-}
 
-instance (BlockShape sh, USource CV sh a, USource CV sh b) =>
-        DefaultFusion CV CV sh a b
+
+instance Shape sh => DefaultFusion CV CV CV sh a b
+
+instance (BlockShape sh, UTarget tr tl sh a) =>
+        ULoad CV CV tr tl sh a where
+    type LoadIndex CV tl sh = sh
+    loadP = rangeLoadP
+    loadS fill arr tarr = rangeLoadS fill arr tarr zero (entire arr tarr)
+    {-# INLINE loadP #-}
+    {-# INLINE loadS #-}
+
+rangeLoadP
+    :: (BlockShape sh, UTarget tr tl sh a)
+    => Fill sh a
+    -> Threads
+    -> UArray CV CV sh a
+    -> UArray tr tl sh a
+    -> IO ()
+rangeLoadP fill threads arr@(Convoluted _ _ bget center cget) tarr = do
+
+    let loadRange@(start, end) = (zero, (entire arr tarr))
+        loadCenter@(cs, ce) = intersectBlocks (vl_2 center loadRange)
+
+    !ts <- threads
+    let {-# INLINE centerWork #-}
+        centerWork = makeFork ts cs ce (fill cget (write tarr))
+        {-# INLINE threadWork #-}
+        threadWork !t = do
+            centerWork t
+            if t == 0
+                then let borders = clipBlock loadRange loadCenter
+                     in V.mapM_ (\(bs, be) -> S.fill bget (write tarr) bs be)
+                                borders
+                else return ()
+                                    
+    parallel_ ts threadWork
+
+rangeLoadS
+    :: (BlockShape sh, UTarget tr tl sh a)
+    => Fill sh a
+    -> UArray CV CV sh a
+    -> UArray tr tl sh a
+    -> sh -> sh
+    -> IO ()
+{-# INLINE rangeLoadS #-}
+rangeLoadS fill arr tarr start end = do
+    let loadRange = (start, end)
+        loadCenter@(cs, ce) = intersectBlocks (vl_2 (center arr) loadRange)
+    fill (centerGet arr) (write tarr) cs ce
+
+    let borders = clipBlock loadRange loadCenter
+    V.mapM_ (\(bs, be) -> S.fill (borderGet arr) (write tarr) bs be)
+            borders
+
+
+
+instance (BlockShape sh, Vector v e,
+          UVecTarget tr tslr tl sh v2 e, Dim v ~ Dim v2) =>
+        UVecLoad (SE CV) CV CV tr tslr tl sh v v2 e where
+    
+    -- These functions aren't inlined propely with any first argument,
+    -- different from Shape.fill (vanilla not unrolled fill),
+    -- for an unknown reason
+    -- Блять, GHC, ну возьми и заинлайнь, там это даже руками можно сделать
+
+    loadSlicesP fill threads arr tarr =
+        rangeLoadSlicesP fill threads arr tarr zero (entire arr tarr)
+    loadSlicesS fill arr tarr =
+        rangeLoadSlicesS fill arr tarr zero (entire arr tarr)
+    {-# INLINE loadSlicesP #-}
+    {-# INLINE loadSlicesS #-}
+
+
+rangeLoadSlicesP
+    :: forall sh v e tr tslr tl v2.
+       (BlockShape sh, UVecTarget tr tslr tl sh v2 e,
+        Vector v e, Dim v ~ Dim v2)
+    => Fill sh e
+    -> Threads
+    -> UArray (SE CV) CV sh (v e)
+    -> UArray tr tl sh (v2 e)
+    -> sh -> sh
+    -> IO ()
+{-# INLINE rangeLoadSlicesP #-}
+rangeLoadSlicesP fill threads arr tarr start end = do
+    !ts <- threads
+    let loadRange = (start, end)
+        sls = slices arr
+
+        centers = V.map center sls
+
+        loadCenters = V.map (\c -> intersectBlocks (vl_2 c loadRange)) centers
+        writes = V.map write (slices tarr)
+        borderGets = V.map borderGet sls
+        borderFills = V.zipWith S.fill borderGets writes
+
+        centerGets = V.map centerGet sls
+        centerFills = V.zipWith fill centerGets writes
+
+        {-# INLINE centerWork #-}
+        centerWork = makeForkSlicesOnce ts loadCenters centerFills
+
+        !slsCount = arity (undefined :: (Dim v))
+        !bordersPerSlice = arity (undefined :: (BC sh))
+        !allBorders = slsCount * bordersPerSlice
+        
+        {-# INLINE bordersSplit #-}
+        bordersSplit = makeSplitIndex ts 0 allBorders
+
+        borders = V.map (clipBlock loadRange) loadCenters
+        fillsAndBorders = V.zipWith (,) borderFills borders
+
+        {-# INLINE bordersWork #-}
+        bordersWork !t =
+            let !startChunk = bordersSplit t
+                !endChunk = (bordersSplit (t + 1)) - 1
+                (!startSlice, !startBorder) =
+                    startChunk `quotRem` bordersPerSlice
+                (!endSlice, !endBorder) =
+                    endChunk `quotRem` bordersPerSlice
+                {-# INLINE go #-}
+                go sl b | sl > endSlice = return ()
+                        | otherwise     =
+                            let e = if sl == endSlice
+                                        then endBorder
+                                        else (bordersPerSlice - 1)
+                                (bfill, borders) = fillsAndBorders V.! sl
+                            in do goSl bfill borders b e
+                                  go (sl + 1) 0
+
+                {-# INLINE goSl #-}
+                goSl bfill borders c e
+                    | c > e     = return ()
+                    | otherwise =
+                        let (bs, be) = borders V.! c
+                        in bfill bs be >> goSl bfill borders (c + 1) e
+            in go startSlice startBorder
+
+
+        {-# INLINE threadWork #-}
+        threadWork !t = do
+            centerWork t
+            bordersWork t
+
+    parallel_ ts threadWork
+
+
+rangeLoadSlicesS
+    :: (BlockShape sh, UVecTarget tr tslr tl sh v2 e,
+        Vector v e, Dim v ~ Dim v2)
+    => Fill sh e
+    -> UArray (SE CV) CV sh (v e)
+    -> UArray tr tl sh (v2 e)
+    -> sh -> sh
+    -> IO ()
+{-# INLINE rangeLoadSlicesS #-}
+rangeLoadSlicesS fill arr tarr start end = do
+    let sls = slices arr
+        borderGets = V.map borderGet sls
+        centers = V.map center sls
+
+        centerGets = V.map centerGet sls
+        writes = V.map write (slices tarr)
+        centerFills = V.zipWith fill centerGets writes
+
+        loadRange = (start, end)
+        loadCenters = V.map (\c -> intersectBlocks (vl_2 c loadRange)) centers
+
+    V.zipWithM_
+        (\centerFill (cs, ce) -> centerFill cs ce)
+        centerFills loadCenters
+
+    let borders = V.map (clipBlock loadRange) loadCenters
+        borderFills = V.zipWith S.fill borderGets writes
+    V.zipWithM_
+        (\bfill borders -> V.mapM_ (\(bs, be) -> bfill bs be) borders)
+        borderFills borders
+
+
+    -- This version is not inlined propely for an unknown reason
+    -- Какого хуя это не инлайнится??!
+
+    --V.zipWithM_ (\sl tsl -> rangeLoadS fill sl tsl start end)
+    --            (slices arr) (slices tarr)

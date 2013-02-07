@@ -5,15 +5,18 @@ module Data.Yarr.Utils.FixedVector (
     
     N7, N8,
     n1, n2, n3, n4, n5, n6, n7, n8,
+    
+    vl_1, vl_2, vl_3, vl_4,
+
     VecTuple(..),
     makeVecTupleInstance,
 
-    zipWith3, zipWithM_, apply, 
+    zipWith3, zipWithM_, apply, all, any,
     
     iifoldl, iifoldM
 ) where
 
-import Prelude hiding (zipWith, zipWith3)
+import Prelude hiding (foldl, zipWith, zipWith3, all, any, sequence_)
 
 import Control.DeepSeq
 
@@ -47,6 +50,22 @@ n7 = undefined
 type N8 = S N7
 n8 :: N8
 n8 = undefined
+
+vl_1 :: a -> VecList N1 a
+{-# INLINE vl_1 #-}
+vl_1 a = VecList [a]
+
+vl_2 :: a -> a -> VecList N2 a
+{-# INLINE vl_2 #-}
+vl_2 a b = VecList [a, b]
+
+vl_3 :: a -> a -> a -> VecList N3 a
+{-# INLINE vl_3 #-}
+vl_3 a b c = VecList [a, b, c]
+
+vl_4 :: a -> a -> a -> a -> VecList N4 a
+{-# INLINE vl_4 #-}
+vl_4 a b c d = VecList [a, b, c, d]
 
 
 #define DERIV(n,clas) deriving instance clas e => clas (VecTuple (n) e)
@@ -82,13 +101,21 @@ zipWithM_
   :: (Vector v a, Vector v b, Vector v c, Monad m, Vector v (m c))
   => (a -> b -> m c) -> v a -> v b -> m ()
 {-# INLINE zipWithM_ #-}
-zipWithM_ f xs ys = (zipWithM f xs ys) >> return ()
+zipWithM_ f xs ys = sequence_ (zipWith f xs ys)
 
 
 apply :: (Vector v a, Vector v (a -> b), Vector v b)
     => v (a -> b) -> v a -> v b
 {-# INLINE apply #-}
-apply = Data.Vector.Fixed.zipWith ($)
+apply = zipWith ($)
+
+all :: Vector v a => (a -> Bool) -> v a -> Bool
+{-# INLINE all #-}
+all p = foldl (\a x -> a && (p x)) True
+
+any :: Vector v a => (a -> Bool) -> v a -> Bool
+{-# INLINE any #-}
+any p = foldl (\a x -> a || (p x)) False
 
 
 iifoldl

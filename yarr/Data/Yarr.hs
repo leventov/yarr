@@ -12,8 +12,8 @@ module Data.Yarr (
     
     F, unsafeFromForeignPtr, toForeignPtr,
     B, MB,
-    D, fromShapeFunction, fromLinearFunction,
-    SE, fromSlices, mapSlices
+    D, UArray(LinearDelayed, ShapeDelayed),
+    SE, fromSlices, unsafeMapSlices
 
 ) where
 

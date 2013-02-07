@@ -5,15 +5,17 @@ import Control.Monad
 import GHC.Conc
 import Control.Concurrent.MVar
 
-parallel :: [IO a] -> IO [a]
+parallel :: Int -> (Int -> IO a) -> IO [a]
 {-# INLINE parallel #-}
-parallel actions = do
-    let n = length actions
-    results <- sequence $ replicate n newEmptyMVar
-    let actions' = zipWith (\act var -> act >>= putMVar var) actions results
-    zipWithM_ forkOn [0..n-1] actions'
-    mapM takeMVar results
+parallel !threads makeWork = do
+    rvars <- sequence $ replicate threads newEmptyMVar
+    let {-# INLINE work #-}
+        work t var = do
+            r <- makeWork t
+            putMVar var r
+    zipWithM_ forkOn [0..] $ zipWith work [0..threads-1] rvars
+    mapM takeMVar rvars
 
-parallel_ :: [IO a] -> IO ()
+parallel_ :: Int -> (Int -> IO a) -> IO ()
 {-# INLINE parallel_ #-}
-parallel_ actions = parallel actions >> return ()
+parallel_ threads makeWork = parallel threads makeWork >> return ()

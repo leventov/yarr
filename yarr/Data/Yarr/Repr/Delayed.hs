@@ -1,5 +1,7 @@
 
-module Data.Yarr.Repr.Delayed where
+module Data.Yarr.Repr.Delayed (
+    D, UArray(LinearDelayed, ShapeDelayed),
+) where
 
 import Prelude as P
 import Control.Monad
@@ -11,60 +13,101 @@ import Data.Yarr.Utils.FixedVector as V
 
 data D
 
-instance Shape sh => Regular D sh a where
+instance Shape sh => Regular D L sh a where
 
-    data UArray D sh a =
-        Delayed
+    data UArray D L sh a =
+        LinearDelayed
             !sh           -- Extent
-            !Bool         -- If shape indexing preferred
             (IO ())       -- Touch
-            (sh -> IO a)  -- Get
             (Int -> IO a) -- Linear get
 
-    extent (Delayed sh _ _ _ _) = sh
-    shapeIndexingPreferred (Delayed _ shIxPref _ _ _) = shIxPref
-    touch (Delayed _ _ tch _ _) = tch
+    extent (LinearDelayed sh _ _) = sh
+    touch (LinearDelayed _ tch _) = tch
 
     {-# INLINE extent #-}
-    {-# INLINE shapeIndexingPreferred #-}
     {-# INLINE touch #-}
 
-instance Shape sh => NFData (UArray D sh a) where
-    rnf (Delayed sh shIxPref tch get lget) =
-        sh `deepseq` shIxPref `seq` tch `seq` lget `seq` get `seq` ()
+instance Shape sh => NFData (UArray D L sh a) where
+    rnf (LinearDelayed sh tch lget) = sh `deepseq` tch `seq` lget `seq` ()
+    {-# INLINE rnf #-}
 
-instance Shape sh => USource D sh a where
-    index (Delayed _ _ _ get _) = get
-    linearIndex (Delayed _ _ _ _ lget) = lget
-    {-# INLINE index #-}
+instance Shape sh => USource D L sh a where
+    linearIndex (LinearDelayed _ _ lget) = lget
     {-# INLINE linearIndex #-}
 
 
-instance (Shape sh, Vector v e) => VecRegular D sh D v e where
-    slices (Delayed sh shIxPref tch get lget) =
-        V.generate (
-            \i ->
-                Delayed
-                    sh shIxPref tch
-                    ((return . (V.! i)) <=< get)
-                    ((return . (V.! i)) <=< lget))
+instance (Shape sh, Vector v e) => VecRegular D D L sh v e where
+    slices (LinearDelayed sh tch lget) =
+        V.generate (\i -> LinearDelayed sh tch ((return . (V.! i)) <=< lget))
     {-# INLINE slices #-}
 
-instance (Shape sh, Vector v e) => UVecSource D sh D v e
+instance (Shape sh, Vector v e) => UVecSource D D L sh v e
 
-instance USource r sh a => Fusion r D sh a b where
+instance USource r L sh a => Fusion r D L sh a b where
     fmapM f arr =
-        Delayed (extent arr) (shapeIndexingPreferred arr) (touch arr)
-            (f <=< index arr) (f <=< linearIndex arr)
+        LinearDelayed (extent arr) (touch arr) (f <=< linearIndex arr)
 
     fzipM fun arrs =
-        let shapes = V.toList $ V.map extent arrs
-            sh0 = P.head shapes
-            needReshape = not $ all (== sh0) shapes
-            sh = if not needReshape
-                    then sh0
-                    else intersect shapes
-            shIxPref = needReshape || any shapeIndexingPreferred (V.toList arrs)
+        let shapes = V.map extent arrs
+            sh = V.head shapes
+
+            tch = V.mapM_ touch arrs
+
+            lgets = V.map linearIndex arrs
+            {-# INLINE lget #-}
+            lget i = do
+                v <- V.mapM ($ i) lgets
+                inspect v fun
+
+        in if V.all (== sh) shapes
+                then LinearDelayed sh tch lget
+                else error ("Yarr! All arrays in linear zip " ++
+                            "must be of the same extent")
+
+    {-# INLINE fmapM #-}
+    {-# INLINE fzipM #-}
+
+instance Shape sh => DefaultFusion D D L sh a b
+
+
+
+instance Shape sh => Regular D SH sh a where
+
+    data UArray D SH sh a =
+        ShapeDelayed
+            !sh           -- Extent
+            (IO ())       -- Touch
+            (sh -> IO a)  -- Shape get
+
+    extent (ShapeDelayed sh _ _) = sh
+    touch (ShapeDelayed _ tch _) = tch
+
+    {-# INLINE extent #-}
+    {-# INLINE touch #-}
+
+instance Shape sh => NFData (UArray D SH sh a) where
+    rnf (ShapeDelayed sh tch get) = sh `deepseq` tch `seq` get `seq` ()
+    {-# INLINE rnf #-}
+
+instance Shape sh => USource D SH sh a where
+    index (ShapeDelayed _ _ get) = get
+    {-# INLINE index #-}
+
+
+instance (Shape sh, Vector v e) => VecRegular D D SH sh v e where
+    slices (ShapeDelayed sh tch get) =
+        V.generate (\i -> ShapeDelayed sh tch ((return . (V.! i)) <=< get))
+    {-# INLINE slices #-}
+
+instance (Shape sh, Vector v e) => UVecSource D D SH sh v e
+
+instance USource r SH sh a => Fusion r D SH sh a b where
+    fmapM f arr =
+        ShapeDelayed (extent arr) (touch arr) (f <=< index arr)
+
+    fzipM fun arrs =
+        let shapes = V.map extent arrs
+            sh = intersect shapes
 
             tch = V.mapM_ touch arrs
 
@@ -74,31 +117,10 @@ instance USource r sh a => Fusion r D sh a b where
                 v <- V.mapM ($ sh) gets
                 inspect v fun
 
-            lgetFromArr = if not needReshape
-                then linearIndex
-                else \arr ->
-                    if extent arr == sh
-                        then linearIndex arr
-                        else index arr . fromIndex sh
-            lgets = V.map lgetFromArr arrs
-            {-# INLINE lget #-}
-            lget i = do
-                v <- V.mapM ($ i) lgets
-                inspect v fun
-
-        in Delayed sh shIxPref tch get lget
+        in ShapeDelayed sh tch get
 
     {-# INLINE fmapM #-}
     {-# INLINE fzipM #-}
 
-instance Shape sh => DefaultFusion D D sh a b
+instance Shape sh => DefaultFusion D D SH sh a b
 
-
-fromShapeFunction :: Shape sh => sh -> IO () -> (sh -> IO a) -> UArray D sh a
-{-# INLINE fromShapeFunction #-}
-fromShapeFunction sh tch get = Delayed sh True tch get (get . fromIndex sh)
-
-fromLinearFunction :: Shape sh => sh -> IO () -> (Int -> IO a) -> UArray D sh a
-{-# INLINE fromLinearFunction #-}
-fromLinearFunction sh tch lget =
-    Delayed sh False tch (lget . toIndex sh) lget

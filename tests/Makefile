@@ -1,5 +1,6 @@
 GHCFLAGS = -Odph -rtsopts -threaded -fno-liberate-case -funbox-strict-fields \
--fexpose-all-unfoldings -funfolding-keeness-factor1000 -fllvm -optlo-O3 -optlo-p
+-fexpose-all-unfoldings -funfolding-keeness-factor1000 \
+-fllvm -optlo-O3
 
 DDUMP_CORE = -ddump-simpl -dsuppress-all
 

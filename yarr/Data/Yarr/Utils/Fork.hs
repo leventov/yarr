@@ -8,52 +8,42 @@ import Data.Yarr.Utils.FixedVector as V hiding (generate)
 import Data.Yarr.Utils.Parallel as Par
 
 
-fork :: Shape sh
-     => Int
-     -> sh -> sh
-     -> (sh -> sh -> IO a)
-     -> [IO a]
-{-# INLINE fork #-}
-fork threads start end rangeWork =
-    generate threads $ makeFork threads start end rangeWork
-
-
-forkEachSlice
+makeForkEachSlice
     :: (Shape sh, Arity n, v ~ VecList n)
     => Int
     -> sh -> sh
     -> v (sh -> sh -> IO a)
-    -> [IO (v a)]
-{-# INLINE forkEachSlice #-}
-forkEachSlice threads start end rangeWorks =
+    -> (Int -> IO (v a))
+{-# INLINE makeForkEachSlice #-}
+makeForkEachSlice threads start end rangeWorks =
     let {-# INLINE etWork #-}
         etWork = makeFork threads start end
-    in generate threads $
-        \ !t -> V.sequence $ V.map (\work -> etWork work t) rangeWorks
+    in \ !t -> V.sequence $ V.map (\work -> etWork work t) rangeWorks
 
 
-forkSlicesOnce
+makeForkSlicesOnce
     :: (Shape sh, Arity n)
     => Int
-    -> sh -> sh
+    -> VecList n (sh, sh)
     -> VecList n (sh -> sh -> IO a)
-    -> [IO [(Int, a)]]
-{-# INLINE forkSlicesOnce #-}
-forkSlicesOnce !threads start end rangeWorks =
+    -> (Int -> IO [(Int, a)])
+{-# INLINE makeForkSlicesOnce #-}
+makeForkSlicesOnce !threads ranges rangeWorks =
     let !slices = V.length rangeWorks
         !allChunks = lcm threads slices
         !chunksPerSlice = allChunks `quot` slices
         !chunksPerThread = allChunks `quot` threads
 
-        {-# INLINE range #-}
-        range = makeChunkRange chunksPerSlice start end
+        rangeMakers =
+            V.map (\(s, e) -> makeChunkRange chunksPerSlice s e) ranges
 
         {-# INLINE threadWork #-}
         threadWork startSlice startPos !endSlice !endPos =
             let {-# INLINE elemWork #-}
                 elemWork !currSlice !currPos results =
-                    if (currSlice > endSlice) ||
-                       (currSlice == endSlice && endPos == start)
+                    let (start, end) = ranges V.! currSlice
+                    in if (currSlice > endSlice) ||
+                          (currSlice == endSlice && endPos == start)
                         then return $ reverse results
                         else
                             let endInSl = if currSlice == endSlice
@@ -68,15 +58,14 @@ forkSlicesOnce !threads start end rangeWorks =
 
             in elemWork startSlice startPos []
 
-    in generate threads $
-        \ !t ->
+    in \ !t ->
             let startChunk = t * chunksPerThread
                 (startSlice, stChunkInSl) = startChunk `quotRem` chunksPerSlice
-                (startPos, _) = range stChunkInSl
+                (startPos, _) = (rangeMakers V.! startSlice) stChunkInSl
 
                 endChunk = (t + 1) * chunksPerThread - 1
                 (endSlice, endChunkInSl) = endChunk `quotRem` chunksPerSlice
-                (_, endPos) = range endChunkInSl
+                (_, endPos) = (rangeMakers V.! endSlice) endChunkInSl
 
             in threadWork startSlice startPos endSlice endPos
 
@@ -94,7 +83,3 @@ makeFork chunks start end =
             \c ->
                 let (cs, ce) = chunkRange c
                 in rangeWork cs ce
-
-
-{-# INLINE generate #-}
-generate n produce = P.map produce [0..n-1]

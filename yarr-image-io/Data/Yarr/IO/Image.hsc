@@ -37,18 +37,18 @@ newtype ImageName = ImageName ILuint
     deriving (Show)
 
 
-data Image = RGBA (UArray F Dim2 (VecList N4 Word8))
-           | RGB (UArray F Dim2 (VecList N3 Word8))
-           | BGRA (UArray F Dim2 (VecList N4 Word8))
-           | BGR (UArray F Dim2 (VecList N3 Word8))
-           | Grey (UArray F Dim2 Word8)
+data Image = RGBA (UArray F L Dim2 (VecList N4 Word8))
+           | RGB (UArray F L Dim2 (VecList N3 Word8))
+           | BGRA (UArray F L Dim2 (VecList N4 Word8))
+           | BGR (UArray F L Dim2 (VecList N3 Word8))
+           | Grey (UArray F L Dim2 Word8)
 
 readRGBVectors
     :: (Vector v Word8, Dim v ~ N3)
-    => Image -> UArray D Dim2 (v Word8)
+    => Image -> UArray D L Dim2 (v Word8)
 readRGBVectors = readRGB construct
 
-readRGB :: (Fun N3 Word8 a) -> Image -> UArray D Dim2 a
+readRGB :: (Fun N3 Word8 a) -> Image -> UArray D L Dim2 a
 readRGB fmapRGB@(Fun mapRGB) image =
     case image of
         (RGBA arr) ->
@@ -192,7 +192,7 @@ toYarr name = do
 
     -- Converts the C vector of unsigned bytes to a garbage collected repa 
     -- array.
-    pixelsToArray :: Dim2 -> IO (UArray F Dim2 a)
+    pixelsToArray :: Dim2 -> IO (UArray F L Dim2 a)
     pixelsToArray dstExtent = do
         pixels <- ilGetDataC
         managedPixels <- newForeignPtr pixels (ilDeleteImage name)
