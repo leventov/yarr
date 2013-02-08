@@ -67,10 +67,11 @@ parseDim2Stencil s =
 
 
 justNonZero :: Integer -> Q Exp
-justNonZero v =
-    if v == 0
-        then [| \acc _ -> return acc |]
-        else [| \acc a -> return $ acc + $(litE (integerL v)) * a |]
+justNonZero v
+    | v == 0    = [| \acc _ -> return acc |]
+    | v == 1    = [| \acc a -> return (acc + a) |]
+    | v == -1   = [| \acc a -> return (acc - a) |]
+    | otherwise = [| \acc a -> return $ acc + $(litE (integerL v)) * a |]
 
 
 

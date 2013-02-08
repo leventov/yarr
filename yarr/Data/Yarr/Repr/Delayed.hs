@@ -1,6 +1,6 @@
 
 module Data.Yarr.Repr.Delayed (
-    D, UArray(LinearDelayed, ShapeDelayed),
+    D, UArray(LinearDelayed, ShapeDelayed), delay,
 ) where
 
 import Prelude as P
@@ -124,3 +124,7 @@ instance USource r SH sh a => Fusion r D SH sh a b where
 
 instance Shape sh => DefaultFusion D D SH sh a b
 
+delay :: (USource r l sh a, USource D l sh a, Fusion r D l sh a a)
+      => UArray r l sh a -> UArray D l sh a
+{-# INLINE delay #-}
+delay = B.fmap id

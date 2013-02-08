@@ -45,8 +45,10 @@ main = do
 
     -- Unfortunately, without this ↘ signature GHC doesn't inline the function
     let luminosity r g b = (0.21 :: Float) * r + 0.71 * g + 0.07 * b
+        {-# INLINE luminosity #-}
         delayedLum = dmap normalizedToByte $ zipElems luminosity floatRGBImage
 
+        {-# INLINE lumTimingLoad #-}
         lumTimingLoad =
             time "luminosity" 10 commonExt
                  (loadP (S.unrolledFill n6 noTouch) caps)

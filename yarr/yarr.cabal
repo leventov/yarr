@@ -17,7 +17,8 @@ Library
         deepseq == 1.3.*,
         fixed-vector == 0.1.2,
         primitive >= 0.2,
-        template-haskell == 2.8.*
+        template-haskell == 2.8.*,
+        missing-foreign == 0.1.1
 
     extensions:
         TypeFamilies, MultiParamTypeClasses, FunctionalDependencies,
@@ -48,8 +49,9 @@ Library
         Data.Yarr.Utils.Parallel
         Data.Yarr.Utils.Split
         Data.Yarr.Utils.Primitive
-        Data.Yarr.Utils.LowLevelFolds
+        Data.Yarr.Utils.LowLevelFlow
 
     other-modules:
         -- re-exported in Utils.FixedVector
         Data.Yarr.Utils.VecTuple
+        Data.Yarr.Utils.VecTupleInstances

@@ -4,6 +4,7 @@ module Data.Yarr.Repr.Foreign where
 import Foreign
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
+import Foreign.Marshal.MissingAlloc
 
 import Data.Yarr.Base as B
 import Data.Yarr.Repr.Delayed
@@ -123,6 +124,15 @@ instance (Shape sh, Storable a) => Manifest F L F L sh a where
     {-# INLINE freeze #-}
     {-# INLINE thaw #-}
     
+newEmpty
+    :: forall sh a. (Shape sh, Storable a, Integral a)
+    => sh -> IO (UArray F L sh a)
+{-# INLINE newEmpty #-}
+newEmpty sh = do
+    let len = size sh
+    ptr <- callocBytes (len * sizeOf (undefined :: a))
+    fptr <- newForeignPtr finalizerFree (castPtr ptr)
+    return $ ForeignArray sh fptr ptr
 
 instance (Shape sh, Storable e) => UTarget FS L sh e where
     write tarr@(ForeignSlice ext vsize _ ptr) sh x =

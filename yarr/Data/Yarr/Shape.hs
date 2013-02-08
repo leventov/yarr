@@ -7,7 +7,7 @@ import GHC.Exts
 import Control.DeepSeq
 
 import Data.Yarr.Utils.FixedVector as V hiding (foldl, foldr)
-import Data.Yarr.Utils.LowLevelFolds
+import Data.Yarr.Utils.LowLevelFlow
 import Data.Yarr.Utils.Primitive
 import Data.Yarr.Utils.Split
 
@@ -16,6 +16,13 @@ type Fill sh a = (sh -> IO a) -> (sh -> a -> IO ()) -> sh -> sh -> IO ()
 class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
     zero :: sh
     size :: sh -> Int
+
+    plus :: sh -> sh -> sh
+    offset :: sh -> sh -> sh
+    minus :: sh -> sh -> sh
+    minus = flip offset
+    negate :: sh -> sh
+    negate = minus zero 
     
     fromIndex :: sh -> Int -> sh
     toIndex :: sh -> sh -> Int
@@ -72,6 +79,9 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
         => uf                 -- Unroll factor
         -> (a -> IO ())       -- Touch
         -> Fill sh a
+
+    {-# INLINE minus #-}
+    {-# INLINE negate #-}
     {-# INLINE intersectBlocks #-}
 
 
@@ -86,6 +96,8 @@ type Dim1 = Int
 instance Shape Dim1 where
     zero = 0
     size = id
+    plus = (+)
+    offset off i = i - off
     fromIndex _ i = i
     toIndex _ i = i
     intersect = V.minimum
@@ -100,7 +112,8 @@ instance Shape Dim1 where
         in \ !c -> (split c, split (c + 1))
 
     fill get write = \ (I# start#) (I# end#) -> fill# get write start# end#
-    unrolledFill uf tch get write =
+    unrolledFill uf tch =
+        \get write ->
         \ (I# start#) (I# end#) -> unrolledFill# uf tch get write start# end#
 
     foldl reduce z get =
@@ -119,6 +132,8 @@ instance Shape Dim1 where
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
+    {-# INLINE plus #-}
+    {-# INLINE offset #-}
     {-# INLINE fromIndex #-}
     {-# INLINE toIndex #-}
     {-# INLINE intersect #-}
@@ -152,6 +167,8 @@ type Dim2 = (Int, Int)
 instance Shape Dim2 where
     zero = (0, 0)
     size (h, w) = h * w
+    plus (y1, x1) (y2, x2) = (y1 + y2, x1 + x2)
+    offset (offY, offX) (y, x) = (y - offY, x - offX)
     fromIndex (_, w) i = i `quotRem` w
     toIndex (_, w) (y, x) = y * w + x
     
@@ -186,20 +203,39 @@ instance Shape Dim2 where
                         go (y + 1)
             in go sy
 
-    unrolledFill unrollFactor tch = 
-        let {-# INLINE actualFill #-}
-            actualFill dim1Fill get write =
-                \ (!sy, !sx) (!ey, !ex) ->
-                    let {-# INLINE go #-}
-                        go y | y >= ey   = return ()
-                             | otherwise = do
-                                dim1Fill
-                                    (\x -> get (y, x))
-                                    (\x a -> write (y, x) a)
-                                    sx ex
-                                go (y + 1)
-                    in go sy
-        in \get write -> actualFill (unrolledFill unrollFactor tch) get write
+    unrolledFill
+        :: forall a uf. Arity uf
+        => uf                 -- Unroll factor
+        -> (a -> IO ())       -- Touch
+        -> Fill Dim2 a
+    unrolledFill unrollFactor tch =
+        let !(I# uf#) = arity unrollFactor
+        in \get write ->
+            \ ((I# sy#), (I# sx#)) ((I# ey#), (I# ex#)) ->
+                let limX# = ex# -# uf#
+                    {-# INLINE goY# #-}
+                    goY# y#
+                        | y# >=# ey#   = return ()
+                        | otherwise    = do
+                            let y = I# y#
+                                {-# INLINE goX# #-}
+                                goX# x#
+                                    | x# ># limX# =
+                                        fill#
+                                            (\x -> get (y, x))
+                                            (\x a -> write (y, x) a)
+                                            x# ex#
+                                    | otherwise   = do
+                                        let x = I# x#
+                                            is :: VecList uf (Int, Int)
+                                            is = V.generate (\i -> (y, i + x))
+                                        as <- V.mapM get is
+                                        V.mapM_ tch as
+                                        V.zipWithM_ write is as
+                                        goX# (x# +# uf#)
+                            goX# sx#
+                            goY# (y# +# 1#)
+                in goY# sy#
 
     foldl reduce z get =
         \ (!sy, !sx) (!ey, !ex) ->
@@ -257,6 +293,8 @@ instance Shape Dim2 where
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
+    {-# INLINE plus #-}
+    {-# INLINE offset #-}
     {-# INLINE fromIndex #-}
     {-# INLINE toIndex #-}
     {-# INLINE intersect #-}
@@ -297,7 +335,8 @@ dim2BlockFill
     -> Dim2 -> Dim2         -- start, end
     -> IO ()
 {-# INLINE dim2BlockFill #-}
-dim2BlockFill blockSizeX blockSizeY tch get write =
+dim2BlockFill blockSizeX blockSizeY tch =
+    \get write ->
     \ ((I# sy#), sx@(I# sx#)) end@((I# ey#), ex@(I# ex#)) ->
         let !(I# bx#) = arity blockSizeX
             limX# = ex# -# bx#
@@ -340,7 +379,8 @@ type Dim3 = (Int, Int, Int)
 instance Shape Dim3 where
     zero = (0, 0, 0)
     size (d, h, w) = d * h * w
-    
+    plus (z1, y1, x1) (z2, y2, x2) = (z1 + z2, y1 + y2, x1 + x2)
+    offset (offZ, offY, offX) (z, y, x) = (z - offZ, y - offY, x - offX)
     fromIndex (_, h, w) i =
         let (i', x) = i `quotRem` w
             (z, y) = i' `quotRem` h
@@ -461,6 +501,8 @@ instance Shape Dim3 where
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
+    {-# INLINE plus #-}
+    {-# INLINE offset #-}
     {-# INLINE fromIndex #-}
     {-# INLINE toIndex #-}
     {-# INLINE intersect #-}

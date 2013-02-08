@@ -45,7 +45,8 @@ main = do
     safeFill timingLoadS blurred delayedBlurred
 
     let timingLoadP =
-            time "parallel blur" 10 (extent image) (loadSlicesP (S.fill) caps)
+            time "parallel blur" 10 (extent image)
+                 (loadSlicesP S.fill caps)
     safeFill timingLoadP blurred delayedBlurred
 
     writeImage ("t-blurred-" ++ imageFile) (RGB blurred)

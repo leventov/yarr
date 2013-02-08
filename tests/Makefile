@@ -12,6 +12,9 @@ ct: color-trans.hs
 blur: blur.hs
 	ghc --make $(GHCFLAGS) $(DDUMP_CORE) -o blur blur.hs > blur-core.hs
 
+canny: canny.hs
+	ghc --make $(GHCFLAGS) $(DDUMP_CORE) -o canny canny.hs > canny-core.hs
+
 %.as: %
 	objdump -d $< > $@
 
@@ -22,5 +25,5 @@ blur: blur.hs
 	gcc -c $(GCCFLAGS) $<
 
 clean:
-	rm *.o *.hi t-* ct blur ct.as blur.as
+	rm *.o *.hi t-* ct blur canny ct.as blur.as canny.as
     

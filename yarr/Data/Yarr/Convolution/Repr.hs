@@ -35,6 +35,11 @@ instance Shape sh => Regular CV CV sh a where
     {-# INLINE extent #-}
     {-# INLINE touch #-}
 
+justCenter :: Shape sh => UArray CV CV sh a -> UArray D SH sh a
+{-# INLINE justCenter #-}
+justCenter (Convoluted sh tch _ (tl, br) cget) =
+    ShapeDelayed (tl `offset` br) tch (cget . (`plus` tl)) 
+
 instance Shape sh => NFData (UArray CV CV sh a) where
     rnf (Convoluted sh tch bget center cget) =
         sh `deepseq` tch `seq` bget `seq` center `deepseq` cget `seq` ()
@@ -84,34 +89,57 @@ instance Shape sh => DefaultFusion CV CV CV sh a b
 instance (BlockShape sh, UTarget tr tl sh a) =>
         ULoad CV CV tr tl sh a where
     type LoadIndex CV tl sh = sh
-    loadP = rangeLoadP
+    loadP fill threads arr tarr =
+        rangeLoadP fill threads arr tarr zero (entire arr tarr)
     loadS fill arr tarr = rangeLoadS fill arr tarr zero (entire arr tarr)
     {-# INLINE loadP #-}
     {-# INLINE loadS #-}
 
 rangeLoadP
-    :: (BlockShape sh, UTarget tr tl sh a)
+    :: forall sh a tr tl. (BlockShape sh, UTarget tr tl sh a)
     => Fill sh a
     -> Threads
     -> UArray CV CV sh a
     -> UArray tr tl sh a
+    -> sh -> sh
     -> IO ()
-rangeLoadP fill threads arr@(Convoluted _ _ bget center cget) tarr = do
+{-# INLINE rangeLoadP #-}
+rangeLoadP fill threads arr@(Convoluted _ _ bget center cget) tarr start end = do
 
-    let loadRange@(start, end) = (zero, (entire arr tarr))
+    let loadRange = (start, end)
         loadCenter@(cs, ce) = intersectBlocks (vl_2 center loadRange)
 
     !ts <- threads
-    let {-# INLINE centerWork #-}
-        centerWork = makeFork ts cs ce (fill cget (write tarr))
+    let {-# INLINE appFill #-}
+        appFill = fill cget (write tarr)
+        {-# INLINE centerWork #-}
+        centerWork = makeFork ts cs ce appFill
+
+        {-# INLINE borderFill #-}
+        borderFill = S.fill bget (write tarr)
+
+        !bordersCount = arity (undefined :: (BC sh))
+        {-# INLINE bordersSplit #-}
+        bordersSplit = makeSplitIndex ts 0 bordersCount
+
+        borders = clipBlock loadRange loadCenter
+
+        {-# INLINE borderWork #-}
+        borderWork !t =
+            let !startBorder = bordersSplit t
+                !endBorder = bordersSplit (t + 1)
+                {-# INLINE go #-}
+                go !b | b >= endBorder = return ()
+                      | otherwise      = do
+                            let (bs, be) = borders V.! b
+                            borderFill bs be
+                            go (b + 1)
+            in go startBorder
+
         {-# INLINE threadWork #-}
         threadWork !t = do
             centerWork t
-            if t == 0
-                then let borders = clipBlock loadRange loadCenter
-                     in V.mapM_ (\(bs, be) -> S.fill bget (write tarr) bs be)
-                                borders
-                else return ()
+            borderWork t
                                     
     parallel_ ts threadWork
 

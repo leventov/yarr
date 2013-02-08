@@ -1,5 +1,5 @@
 
-module Data.Yarr.Utils.LowLevelFolds where
+module Data.Yarr.Utils.LowLevelFlow where
 
 import GHC.Exts
 import Data.Yarr.Utils.FixedVector as V
@@ -35,7 +35,7 @@ unrolledFill# unrollFactor tch get write start# end# =
         lim# = end# -# uf#
         {-# INLINE go# #-}
         go# i#
-            | i# ># lim# = rest# i#
+            | i# ># lim# = fill# get write i# end#
             | otherwise  = do
                 let is :: VecList uf Int
                     is = V.generate (+ (I# i#))
@@ -43,16 +43,7 @@ unrolledFill# unrollFactor tch get write start# end# =
                 V.mapM_ tch as
                 V.zipWithM_ write is as
                 go# (i# +# uf#)
-
-        {-# INLINE rest# #-}
-        rest# i#
-            | i# >=# end# = return ()
-            | otherwise   = do
-                let i = (I# i#)
-                a <- get i
-                tch a
-                write i a
-                rest# (i# +# 1#)
+                
     in go# start#
 
 
