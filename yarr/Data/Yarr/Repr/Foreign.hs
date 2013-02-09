@@ -1,5 +1,9 @@
 
-module Data.Yarr.Repr.Foreign where
+module Data.Yarr.Repr.Foreign (
+    F, FS, L,
+    newEmpty,
+    toForeignPtr, unsafeFromForeignPtr
+) where
 
 import Foreign
 import Foreign.ForeignPtr
@@ -10,29 +14,9 @@ import Data.Yarr.Base as B
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
 import Data.Yarr.Shape
+
+import Data.Yarr.Utils.Storable
 import Data.Yarr.Utils.FixedVector as V
-
-
-instance (Storable e, Vector v e) => Storable (v e) where
-    sizeOf _ =
-        let esize = sizeOf (undefined :: e)
-            n = arity (undefined :: (Dim v))
-        in n * esize
-
-    alignment _ = alignment (undefined :: e)
-
-    peek ptr =
-        let eptr = castPtr ptr
-        in V.generateM (\i -> peekElemOff eptr i)
-
-    poke ptr v =
-        let eptr = castPtr ptr
-        in imapM_ (\i e -> pokeElemOff eptr i e) v
-
-    {-# INLINE sizeOf #-}
-    {-# INLINE alignment #-}
-    {-# INLINE peek #-}
-    {-# INLINE poke #-}
 
 
 data F
@@ -47,10 +31,10 @@ instance Shape sh => Regular F L sh a where
             !(Ptr a)         -- Plain ptr for fast memory access
     
     extent (ForeignArray sh _ _) = sh
-    touch (ForeignArray _ fptr _) = touchForeignPtr fptr
+    touchArray (ForeignArray _ fptr _) = touchForeignPtr fptr
     
     {-# INLINE extent #-}
-    {-# INLINE touch #-}    
+    {-# INLINE touchArray #-}    
 
 instance Shape sh => NFData (UArray F L sh a) where
     rnf (ForeignArray sh fptr ptr) = sh `deepseq` fptr `seq` ptr `seq` ()
@@ -75,10 +59,10 @@ instance Shape sh => Regular FS L sh e where
             !(Ptr e)         -- Plain ptr for fast memory access
     
     extent (ForeignSlice sh _ _ _) = sh
-    touch (ForeignSlice _ _ fptr _) = touchForeignPtr fptr
+    touchArray (ForeignSlice _ _ fptr _) = touchForeignPtr fptr
     
     {-# INLINE extent #-}
-    {-# INLINE touch #-}
+    {-# INLINE touchArray #-}
 
 instance Shape sh => NFData (UArray FS L sh e) where
     rnf (ForeignSlice sh vsize fptr ptr) =
@@ -112,10 +96,9 @@ instance (Shape sh, Storable a) => UTarget F L sh a where
 
 instance (Shape sh, Storable a) => Manifest F L F L sh a where
     new sh = do
-        let len = size sh
-        ptr <- mallocBytes (len * sizeOf (undefined :: a))
-        fptr <- newForeignPtr finalizerFree (castPtr ptr)
-        return $ ForeignArray sh fptr ptr
+        arr <- internalNew mallocBytes sh
+        arr `deepseq` return ()
+        return arr
 
     freeze = return
     thaw = return
@@ -124,15 +107,23 @@ instance (Shape sh, Storable a) => Manifest F L F L sh a where
     {-# INLINE freeze #-}
     {-# INLINE thaw #-}
     
-newEmpty
-    :: forall sh a. (Shape sh, Storable a, Integral a)
-    => sh -> IO (UArray F L sh a)
+newEmpty :: (Shape sh, Storable a, Integral a) => sh -> IO (UArray F L sh a)
 {-# INLINE newEmpty #-}
 newEmpty sh = do
+    arr <- internalNew callocBytes sh
+    arr `deepseq` return ()
+    return arr
+
+internalNew
+    :: forall sh a. (Shape sh, Storable a)
+    => (Int -> IO (Ptr a)) -> sh -> IO (UArray F L sh a)
+{-# NOINLINE internalNew #-}
+internalNew allocBytes sh = do
     let len = size sh
-    ptr <- callocBytes (len * sizeOf (undefined :: a))
+    ptr <- allocBytes (len * sizeOf (undefined :: a))
     fptr <- newForeignPtr finalizerFree (castPtr ptr)
     return $ ForeignArray sh fptr ptr
+
 
 instance (Shape sh, Storable e) => UTarget FS L sh e where
     write tarr@(ForeignSlice ext vsize _ ptr) sh x =

@@ -25,7 +25,7 @@ main = do
 
     anyImage <- readImage imageFile
     (floatRGBImage :: UArray F L Dim2 (VecList N3 Float)) <-
-        safeCompute (loadS fill) $
+        compute (loadS fill) $
             mapElems normalizeByte $ readRGBVectors anyImage
 
     let contrastFactor = read cf
@@ -34,25 +34,21 @@ main = do
         delayedContrasted =
             mapElemsM ((return . normalizedToByte) <=< contrast) floatRGBImage
 
-        commonExt = (extent floatRGBImage)
-        contrastTimingLoad =
-            time "contrast" 10 commonExt (loadP S.fill caps)
-    (contrasted :: UArray F L Dim2 (VecList N3 Word8)) <-
-        safeCompute contrastTimingLoad delayedContrasted
+        ext = (extent floatRGBImage)
+            
+    (contrasted :: UArray F L Dim2 (VecList N3 Word8)) <- new ext
+    bench "contrast" 10 ext $
+        loadP S.fill caps delayedContrasted contrasted
 
     writeImage ("t-contrasted-" ++ imageFile) (RGB contrasted)
 
 
     -- Unfortunately, without this ↘ signature GHC doesn't inline the function
     let luminosity r g b = (0.21 :: Float) * r + 0.71 * g + 0.07 * b
-        {-# INLINE luminosity #-}
         delayedLum = dmap normalizedToByte $ zipElems luminosity floatRGBImage
 
-        {-# INLINE lumTimingLoad #-}
-        lumTimingLoad =
-            time "luminosity" 10 commonExt
-                 (loadP (S.unrolledFill n6 noTouch) caps)
-    (lum :: UArray F L Dim2 Word8) <-
-        safeCompute lumTimingLoad delayedLum
+    (lum :: UArray F L Dim2 Word8) <- new ext
+    bench "luminosity" 10 ext $
+        loadP (S.unrolledFill n6 noTouch) caps delayedLum lum
 
     writeImage ("t-luminosity-" ++ imageFile) (Grey lum)
