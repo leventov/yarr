@@ -14,10 +14,10 @@ instance Regular r l sh a => Regular (CHK r) l sh a where
     newtype UArray (CHK r) l sh a = Checked { unchecked :: UArray r l sh a }
 
     extent = extent . unchecked
-    touch = touch . unchecked
+    touchArray = touchArray . unchecked
 
     {-# INLINE extent #-}
-    {-# INLINE touch #-}
+    {-# INLINE touchArray #-}
 
 instance NFData (UArray r l sh a) => NFData (UArray (CHK r) l sh a) where
     rnf = rnf . unchecked

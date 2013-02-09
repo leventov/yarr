@@ -1,5 +1,5 @@
 Name:                yarr
-Version:             0.9.0
+Version:             0.9.1
 Synopsis:            Yet another array library
 License:             MIT
 License-file:        LICENSE
@@ -43,11 +43,13 @@ Library
         Data.Yarr.Repr.Checked
         Data.Yarr.Convolution
         Data.Yarr.Convolution.Repr
+        Data.Yarr.Convolution.Eval
         Data.Yarr.Convolution.StaticStencils
         Data.Yarr.Utils.FixedVector
         Data.Yarr.Utils.Fork
         Data.Yarr.Utils.Parallel
         Data.Yarr.Utils.Split
+        Data.Yarr.Utils.Storable
         Data.Yarr.Utils.Primitive
         Data.Yarr.Utils.LowLevelFlow
 

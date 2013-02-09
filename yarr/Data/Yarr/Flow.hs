@@ -14,8 +14,10 @@ traverse
     -> UArray r l sh a -> UArray D SH sh' b
 {-# INLINE traverse #-}
 traverse transformShape newElem arr =
-    let newSh = transformShape (extent arr)
-    in ShapeDelayed newSh (touch arr) (newElem (index arr))
+    ShapeDelayed
+        (transformShape (extent arr))
+        (touchArray arr) (force arr)
+        (newElem (index arr))
 
 
 zipElems

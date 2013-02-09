@@ -5,8 +5,8 @@ import Prelude as P
 import Data.Functor ((<$>))
 
 import Data.Yarr.Base as B
-import Data.Yarr.Repr.Delayed
 import Data.Yarr.Shape
+import Data.Yarr.Repr.Delayed
 import Data.Yarr.Utils.FixedVector as V
 
 
@@ -18,10 +18,14 @@ instance (Regular r l sh e, Vector v e) => Regular (SE r) l sh (v e) where
         Separate !sh (VecList (Dim v) (UArray r l sh e))
 
     extent (Separate sh _) = sh
-    touch (Separate _ slices) = V.mapM_ touch slices
+    touchArray (Separate _ slices) = V.mapM_ touchArray slices
+    force (Separate sh slices) = do
+        sh `deepseq` return ()
+        V.mapM_ force slices
 
     {-# INLINE extent #-}
-    {-# INLINE touch #-}
+    {-# INLINE touchArray #-}
+    {-# INLINE force #-}
 
 instance (NFData (UArray r l sh e), Shape sh, Vector v e) =>
         NFData (UArray (SE r) l sh (v e)) where

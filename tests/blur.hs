@@ -7,14 +7,13 @@ import Data.Word
 
 import Data.Yarr
 import Data.Yarr.Shape as S
-import Data.Yarr.Convolution as C
+import Data.Yarr.Convolution
 import Data.Yarr.IO.Image
 import Data.Yarr.Benchmarking
 import Data.Yarr.Utils.FixedVector as V
 import Data.Yarr.Utils.Primitive as P
-import System.CPUTime.Rdtsc
 
-blur :: UArray D L Dim2 Int -> UArray CV CV Dim2 Float
+blur :: UArray F L Dim2 Int -> UArray CV CV Dim2 Float
 {-# INLINE blur #-}
 blur arr =
     let convolved =
@@ -34,19 +33,19 @@ main = do
     anyImage <- readImage imageFile
 
     (image :: UArray (SE F) L Dim2 (VecList N3 Int)) <-
-        safeCompute (loadS (S.fill)) $ mapElems fromIntegral $ readRGBVectors anyImage
+        compute (loadS S.fill) $
+            mapElems fromIntegral $ readRGBVectors anyImage
 
-    let delayedImage = mapElems id image
-        delayedBlurred = mapElems truncate' $ unsafeMapSlices blur delayedImage
+    let delayedBlurred = mapElems truncate' $ unsafeMapSlices blur image
 
     (blurred :: UArray F L Dim2 (VecList N3 Word8)) <- new (extent image)
 
-    let timingLoadS = timeSlices "sequential blur" 10 (extent image) (loadS S.fill)
-    safeFill timingLoadS blurred delayedBlurred
+    benchSlices "sequential blur" 10 (extent image)
+                (loadS S.fill) delayedBlurred blurred
 
-    let timingLoadP =
-            time "parallel blur" 10 (extent image)
-                 (loadSlicesP S.fill caps)
-    safeFill timingLoadP blurred delayedBlurred
+    bench "parallel blur" 10 (extent image) $
+        -- It isn't inlined with S.unrolledFill and S.dim2BlockFill
+        -- instead of S.fill, see comments in Data.Yarr.Convolution.Eval
+        loadSlicesP S.fill caps delayedBlurred blurred
 
     writeImage ("t-blurred-" ++ imageFile) (RGB blurred)

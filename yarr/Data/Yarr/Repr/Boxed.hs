@@ -16,10 +16,10 @@ instance (Shape sh, NFData a) => Regular B L sh a where
     data UArray B L sh a = Boxed !sh !(Array a)
 
     extent (Boxed sh _) = sh
-    touch _ = return ()
+    touchArray _ = return ()
 
     {-# INLINE extent #-}
-    {-# INLINE touch #-}
+    {-# INLINE touchArray #-}
 
 instance (Shape sh, NFData a) => NFData (UArray B L sh a) where
     rnf (Boxed sh !arr) = sh `deepseq` arr `seq` ()
@@ -40,10 +40,10 @@ instance (Shape sh, NFData a) => Regular MB L sh a where
     data UArray MB L sh a = MutableBoxed !sh !(MutableArray RealWorld a)
 
     extent (MutableBoxed sh _) = sh
-    touch _ = return ()
+    touchArray _ = return ()
 
     {-# INLINE extent #-}
-    {-# INLINE touch #-}
+    {-# INLINE touchArray #-}
 
 instance (Shape sh, NFData a) => NFData (UArray MB L sh a) where
     rnf (MutableBoxed sh !marr) = sh `deepseq` marr `seq` ()
