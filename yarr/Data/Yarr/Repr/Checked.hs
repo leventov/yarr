@@ -51,17 +51,6 @@ instance UVecSource r slr l sh v e =>
         UVecSource (CHK r) (CHK slr) l sh v e where
 
 
-instance Fusion r fr l sh a b => Fusion (CHK r) (CHK fr) l sh a b where
-    fmapM f = Checked . fmapM f . unchecked
-    fzipM fun arrs =
-        let uncheckedArrs = V.map unchecked arrs
-        in Checked (fzipM fun uncheckedArrs)
-    {-# INLINE fmapM #-}
-    {-# INLINE fzipM #-}
-
-instance DefaultFusion r fr l sh a b => DefaultFusion (CHK r) (CHK fr) l sh a b
-
-
 instance UTarget tr tl sh a => UTarget (CHK tr) tl sh a where
     write (Checked arr) sh =
         let ext = extent arr
@@ -79,7 +68,7 @@ instance UTarget tr tl sh a => UTarget (CHK tr) tl sh a where
     {-# INLINE write #-}
     {-# INLINE linearWrite #-}
 
-instance Manifest r l mr ml sh a => Manifest (CHK r) l (CHK mr) ml sh a where
+instance Manifest r mr l sh a => Manifest (CHK r) (CHK mr) l sh a where
     new sh = fmap Checked (new sh)
     freeze (Checked marr) = fmap Checked (freeze marr)
     thaw (Checked arr) = fmap Checked (thaw arr)

@@ -1,20 +1,26 @@
 
 module Data.Yarr.Utils.FixedVector (
+    -- * Fixed Vector  
     module Data.Vector.Fixed,
     Fn, arity,
     
+    -- * Missed utility
+    zipWith3, zipWithM_, apply, all, any,
+    iifoldl, iifoldM,
+
+    -- * Shortcuts
+    -- ** Arity
     N7, N8,
     n1, n2, n3, n4, n5, n6, n7, n8,
     
+    -- ** VecList makers
     vl_1, vl_2, vl_3, vl_4,
 
+    -- * VecTuple
     VecTuple(..),
     module Data.Yarr.Utils.VecTupleInstances,
     makeVecTupleInstance,
 
-    zipWith3, zipWithM_, apply, all, any,
-    
-    iifoldl, iifoldM
 ) where
 
 import Prelude hiding (foldl, zipWith, zipWith3, all, any, sequence_)
@@ -45,11 +51,11 @@ n5 = undefined
 n6 :: N6
 n6 = undefined
 
-type N7 = S N6
+
 n7 :: N7
 n7 = undefined
 
-type N8 = S N7
+
 n8 :: N8
 n8 = undefined
 

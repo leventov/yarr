@@ -1,7 +1,9 @@
 
 module Data.Yarr.Convolution (
+    -- * Convolved representation
     module Data.Yarr.Convolution.Repr,
     module Data.Yarr.Convolution.Eval,
+    -- * Static stencils
     module Data.Yarr.Convolution.StaticStencils
 ) where
 

@@ -9,7 +9,16 @@ import GHC.Int
 
 import Data.Yarr.Utils.FixedVector as V
 
+
+-- | Mainly used to fight against GHC simplifier, which gives
+-- no chance to LLVM to perform Global Value Numbering optimization.
+--
+-- Copied from @repa@, see
+-- <http://hackage.haskell.org/packages/archive/repa/3.2.3.1/doc/html/Data-Array-Repa-Eval.html>
 class Touchable a where
+    -- | The function intented to be passed as 3rd parameter
+    -- to @unrolled-@ functions in 'Data.Yarr.Shape.Shape' class
+    -- and 'Data.Yarr.Shape.dim2BlockFill'.
     touch :: a -> IO ()
 
 instance Touchable Bool where
@@ -39,18 +48,38 @@ instance (Vector v e, Touchable e) => Touchable (v e) where
     touch = V.mapM_ touch
     {-# INLINE touch #-}
 
+-- | Alias to @(\_ -> return ())@
 noTouch :: a -> IO ()
 {-# INLINE noTouch #-}
 noTouch _ = return ()
 
-
+-- | GHC simplifier tends to float numeric comparsions
+-- as high in execution graph as possible, which in conjunction
+-- with loop unrolling sometimes leads to dramatic code bloat.
+--
+-- I'm not sure @-M@ functions work at all,
+-- but strict versions defenitely keep comparsions unfloated.
 class PrimitiveOrd a where
+    -- | Maybe sequential 'min'.
     minM :: a -> a -> IO a
+    -- | Definetely sequential 'min'.
     minM' :: a -> a -> IO a
+    -- | Maybe sequential 'max'.
     maxM :: a -> a -> IO a
+    -- | Definetely sequential 'max'.
     maxM' :: a -> a -> IO a
-    clampM :: a -> a -> a -> IO a
-    clampM' :: a -> a -> a -> IO a
+    -- | Maybe sequential clamp.
+    clampM
+        :: a    -- ^ Min bound
+        -> a    -- ^ Max bound
+        -> a    -- ^ Value to clamp
+        -> IO a -- ^ Value in bounds
+    -- | Definetely sequential clamp.
+    clampM'
+        :: a    -- ^ Min bound
+        -> a    -- ^ Max bound
+        -> a    -- ^ Value to clamp
+        -> IO a -- ^ Value in bounds
 
 #define PRIM_COMP_INST(ty,con,le,ge)                                 \
 instance PrimitiveOrd ty where {                                     \

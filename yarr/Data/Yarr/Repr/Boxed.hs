@@ -9,6 +9,14 @@ import Data.Yarr.Shape
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
 
+-- | 'B'oxed representation is a wrapper for 'Data.Primitive.Array.Array'
+-- from @primitive@ package. It may be used to operate with arrays
+-- of variable-lengths or multiconstructor ADTs, for example, lists.
+-- 
+-- For 'Foreign.Storable' element types you would better use
+-- 'Data.Yarr.Repr.Foreign.F'oreign arrays.
+--
+-- /TODO:/ test this representation at least one time...
 data B
 
 instance (Shape sh, NFData a) => Regular B L sh a where
@@ -28,11 +36,11 @@ instance (Shape sh, NFData a) => USource B L sh a where
     linearIndex (Boxed _ arr) = indexArrayM arr
     {-# INLINE linearIndex #-}
 
-instance (Shape sh, NFData a) => DefaultFusion B D L sh a b
+instance DefaultFusion B D L
 
 instance (Shape sh, Vector v e, NFData e) => UVecSource (SE B) B L sh v e
 
-
+-- | Mutable Boxed is a wrapper for 'Data.Primitive.Array.MutableArray'.
 data MB
 
 instance (Shape sh, NFData a) => Regular MB L sh a where
@@ -52,7 +60,7 @@ instance (Shape sh, NFData a) => USource MB L sh a where
     linearIndex (MutableBoxed _ marr) = readArray marr
     {-# INLINE linearIndex #-}
 
-instance (Shape sh, NFData a) => DefaultFusion MB D L sh a b
+instance DefaultFusion MB D L
 
 instance (Shape sh, Vector v e, NFData e) => UVecSource (SE MB) MB L sh v e
 
@@ -62,7 +70,7 @@ instance (Shape sh, NFData a) => UTarget MB L sh a where
         writeArray marr i x
     {-# INLINE linearWrite #-}
 
-instance (Shape sh, NFData a) => Manifest B L MB L sh a where
+instance (Shape sh, NFData a) => Manifest B MB L sh a where
     new sh = fmap (MutableBoxed sh) (newArray (size sh) uninitialized)
     freeze (MutableBoxed sh marr) = fmap (Boxed sh) (unsafeFreezeArray marr)
     thaw (Boxed sh arr) = fmap (MutableBoxed sh) (unsafeThawArray arr)

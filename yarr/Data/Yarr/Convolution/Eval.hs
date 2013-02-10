@@ -1,7 +1,5 @@
 
-module Data.Yarr.Convolution.Eval (
-    Load(..), RangeLoad(..), VecLoad(..), RangeVecLoad(..)
-) where
+module Data.Yarr.Convolution.Eval () where
 
 import Data.Yarr.Base
 import Data.Yarr.Eval
@@ -16,8 +14,8 @@ import Data.Yarr.Utils.Split
 
 
 instance (BlockShape sh, UTarget tr tl sh a) =>
-        Load CV CV tr tl sh a where
-    type LoadIndex CV tl sh = sh
+        Load CV CVL tr tl sh a where
+    type LoadIndex CVL tl sh = sh
     loadP fill threads arr tarr =
         cvLoadP fill threads arr tarr zero (entire arr tarr)
     loadS fill arr tarr = cvLoadS fill arr tarr zero (entire arr tarr)
@@ -26,7 +24,7 @@ instance (BlockShape sh, UTarget tr tl sh a) =>
 
 
 instance (BlockShape sh, UTarget tr tl sh a) =>
-        RangeLoad CV CV tr tl sh a where
+        RangeLoad CV CVL tr tl sh a where
     rangeLoadP = cvLoadP
     rangeLoadS = cvLoadS
     {-# INLINE rangeLoadP #-}
@@ -36,7 +34,7 @@ cvLoadP
     :: forall sh a tr tl. (BlockShape sh, UTarget tr tl sh a)
     => Fill sh a
     -> Threads
-    -> UArray CV CV sh a
+    -> UArray CV CVL sh a
     -> UArray tr tl sh a
     -> sh -> sh
     -> IO ()
@@ -57,7 +55,7 @@ cvLoadP fill threads arr@(Convoluted _ _ _ bget center cget) tarr start end = do
         {-# INLINE borderFill #-}
         borderFill = S.fill bget (write tarr)
 
-        !bordersCount = arity (undefined :: (BC sh))
+        !bordersCount = arity (undefined :: (BorderCount sh))
         {-# INLINE bordersSplit #-}
         bordersSplit = makeSplitIndex ts 0 bordersCount
 
@@ -88,7 +86,7 @@ cvLoadP fill threads arr@(Convoluted _ _ _ bget center cget) tarr start end = do
 cvLoadS
     :: (BlockShape sh, UTarget tr tl sh a)
     => Fill sh a
-    -> UArray CV CV sh a
+    -> UArray CV CVL sh a
     -> UArray tr tl sh a
     -> sh -> sh
     -> IO ()
@@ -110,7 +108,7 @@ cvLoadS fill arr@(Convoluted _ _ _ bget center cget) tarr start end = do
 
 instance (BlockShape sh, Vector v e,
           UVecTarget tr tslr tl sh v2 e, Dim v ~ Dim v2) =>
-        VecLoad (SE CV) CV CV tr tslr tl sh v v2 e where
+        VecLoad (SE CV) CV CVL tr tslr tl sh v v2 e where
     
     -- These functions aren't inlined propely with any first argument,
     -- different from Shape.fill (vanilla not unrolled fill),
@@ -125,7 +123,7 @@ instance (BlockShape sh, Vector v e,
 
 instance (BlockShape sh, Vector v e,
           UVecTarget tr tslr tl sh v2 e, Dim v ~ Dim v2) =>
-        RangeVecLoad (SE CV) CV CV tr tslr tl sh v v2 e where
+        RangeVecLoad (SE CV) CV CVL tr tslr tl sh v v2 e where
     rangeLoadSlicesP = cvLoadSlicesP
     rangeLoadSlicesS = cvLoadSlicesS
     {-# INLINE rangeLoadSlicesP #-}
@@ -138,7 +136,7 @@ cvLoadSlicesP
         Vector v e, Dim v ~ Dim v2)
     => Fill sh e
     -> Threads
-    -> UArray (SE CV) CV sh (v e)
+    -> UArray (SE CV) CVL sh (v e)
     -> UArray tr tl sh (v2 e)
     -> sh -> sh
     -> IO ()
@@ -165,7 +163,7 @@ cvLoadSlicesP fill threads arr tarr start end = do
         centerWork = makeForkSlicesOnce ts loadCenters centerFills
 
         !slsCount = arity (undefined :: (Dim v))
-        !bordersPerSlice = arity (undefined :: (BC sh))
+        !bordersPerSlice = arity (undefined :: (BorderCount sh))
         !allBorders = slsCount * bordersPerSlice
         
         {-# INLINE bordersSplit #-}
@@ -216,7 +214,7 @@ cvLoadSlicesS
     :: (BlockShape sh, UVecTarget tr tslr tl sh v2 e,
         Vector v e, Dim v ~ Dim v2)
     => Fill sh e
-    -> UArray (SE CV) CV sh (v e)
+    -> UArray (SE CV) CVL sh (v e)
     -> UArray tr tl sh (v2 e)
     -> sh -> sh
     -> IO ()

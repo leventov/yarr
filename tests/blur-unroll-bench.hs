@@ -15,7 +15,7 @@ main = do
     let ext = (2560, 1600)
     (arr :: UArray F L Dim2 Word8) <- new ext
 
-    let convolvedX :: UArray CV CV Dim2 Int
+    let convolvedX :: UArray CV CVL Dim2 Int
         convolvedX =
             dConvolveLinearDim2WithStaticStencil
                 [dim2St| 1 4 6 4 1 |]
@@ -55,7 +55,7 @@ main = do
 
     (cX :: UArray F L Dim2 Word16) <- new ext
 
-    let convolvedY :: UArray CV CV Dim2 Word
+    let convolvedY :: UArray CV CVL Dim2 Word
         convolvedY =
             dConvolveLinearDim2WithStaticStencil
                 [dim2St| 1

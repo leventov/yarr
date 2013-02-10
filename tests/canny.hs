@@ -80,7 +80,7 @@ process threshLow threshHigh image resultEdges = do
 blur :: FImage Word8 -> FImage Float -> IO ()
 blur image target = do
 
-    let convolvedX :: UArray CV CV Dim2 Word
+    let convolvedX :: UArray CV CVL Dim2 Word
         convolvedX =
             dConvolveLinearDim2WithStaticStencil
                 [dim2St| 1 4 6 4 1 |]
@@ -91,7 +91,7 @@ blur image target = do
         loadP (S.unrolledFill n8 Pr.touch) caps
               (dmap fromIntegral convolvedX) cX
 
-    let convolvedY :: UArray CV CV Dim2 Word
+    let convolvedY :: UArray CV CVL Dim2 Word
         convolvedY =
             dConvolveLinearDim2WithStaticStencil
                 [dim2St| 1
@@ -165,8 +165,7 @@ gradientMagOrient !threshLow image target = do
                                             else W8# (64## `plusWord#` diagInv#)
             in VT_2 (mag, orient)
 
-        delayedMagOrient =
-            dzip (Fun magnitudeAndOrient) (vl_2 gradientX gradientY)
+        delayedMagOrient = dzip2 magnitudeAndOrient gradientX gradientY
 
     time "magOrient" (extent image) $
         loadP S.fill caps delayedMagOrient target

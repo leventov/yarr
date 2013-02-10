@@ -1,8 +1,14 @@
 
 module Data.Yarr.Repr.Delayed (
-    D, delay, delayShaped, DT, delayShapedTarget,
-    L, SH,
+    -- * Delayed source
+    D,
+    Regular,
     UArray(LinearDelayed, ShapeDelayed, ShapeDelayedTarget),
+    L, SH, delay, delayShaped,
+    -- * Delayed target
+    DT,
+
+    
 ) where
 
 import Prelude as P
@@ -13,7 +19,12 @@ import Data.Yarr.Eval
 import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
 
-
+-- | Delayed representation is a wrapper for arbitrary indexing function.
+--
+-- @'UArray' D 'L' sh a@ instance holds linear getter (@(Int -> IO a)@),
+-- and @'UArray' D 'SH' sh a@ - shaped, \"true\" @(sh -> IO a)@ index, respectively.
+--
+-- @D@elayed arrays are most common recipients for fusion operations.
 data D
 
 instance Shape sh => Regular D L sh a where
@@ -52,10 +63,37 @@ instance (Shape sh, Vector v e) => VecRegular D D L sh v e where
 
 instance (Shape sh, Vector v e) => UVecSource D D L sh v e
 
-instance USource r L sh a => Fusion r D L sh a b where
+instance Fusion r D L where
     fmapM f arr =
         LinearDelayed
             (extent arr) (touchArray arr) (force arr) (f <=< linearIndex arr)
+
+    fzip2M f arr1 arr2 =
+        let sh = intersect (vl_2 (extent arr1) (extent arr2))
+            tch = touchArray arr1 >> touchArray arr2
+            iforce = force arr1 >> force arr2
+
+            {-# INLINE lget #-}
+            lget i = do
+                v1 <- linearIndex arr1 i
+                v2 <- linearIndex arr2 i
+                f v1 v2
+
+        in LinearDelayed sh tch iforce lget
+
+    fzip3M f arr1 arr2 arr3 =
+        let sh = intersect (vl_3 (extent arr1) (extent arr2) (extent arr3))
+            tch = touchArray arr1 >> touchArray arr2 >> touchArray arr3
+            iforce = force arr1 >> force arr2 >> force arr3
+
+            {-# INLINE lget #-}
+            lget i = do
+                v1 <- linearIndex arr1 i
+                v2 <- linearIndex arr2 i
+                v3 <- linearIndex arr3 i
+                f v1 v2 v3
+
+        in LinearDelayed sh tch iforce lget
 
     fzipM fun arrs =
         let shapes = V.map extent arrs
@@ -77,9 +115,11 @@ instance USource r L sh a => Fusion r D L sh a b where
                             "must be of the same extent")
 
     {-# INLINE fmapM #-}
+    {-# INLINE fzip2M #-}
+    {-# INLINE fzip3M #-}
     {-# INLINE fzipM #-}
 
-instance Shape sh => DefaultFusion D D L sh a b
+instance DefaultFusion D D L
 
 
 
@@ -118,10 +158,37 @@ instance (Shape sh, Vector v e) => VecRegular D D SH sh v e where
 
 instance (Shape sh, Vector v e) => UVecSource D D SH sh v e
 
-instance USource r SH sh a => Fusion r D SH sh a b where
+instance Fusion r D SH where
     fmapM f arr =
         ShapeDelayed
             (extent arr) (touchArray arr) (force arr) (f <=< index arr)
+
+    fzip2M f arr1 arr2 =
+        let sh = intersect (vl_2 (extent arr1) (extent arr2))
+            tch = touchArray arr1 >> touchArray arr2
+            iforce = force arr1 >> force arr2
+
+            {-# INLINE get #-}
+            get sh = do
+                v1 <- index arr1 sh
+                v2 <- index arr2 sh
+                f v1 v2
+
+        in ShapeDelayed sh tch iforce get
+
+    fzip3M f arr1 arr2 arr3 =
+        let sh = intersect (vl_3 (extent arr1) (extent arr2) (extent arr3))
+            tch = touchArray arr1 >> touchArray arr2 >> touchArray arr3
+            iforce = force arr1 >> force arr2 >> force arr3
+
+            {-# INLINE get #-}
+            get sh = do
+                v1 <- index arr1 sh
+                v2 <- index arr2 sh
+                v3 <- index arr3 sh
+                f v1 v2 v3
+
+        in ShapeDelayed sh tch iforce get
 
     fzipM fun arrs =
         let shapes = V.map extent arrs
@@ -140,21 +207,30 @@ instance USource r SH sh a => Fusion r D SH sh a b where
         in ShapeDelayed sh tch iforce get
 
     {-# INLINE fmapM #-}
+    {-# INLINE fzip2M #-}
+    {-# INLINE fzip3M #-}
     {-# INLINE fzipM #-}
 
-instance Shape sh => DefaultFusion D D SH sh a b
+instance DefaultFusion D D SH
 
-delay :: (USource r l sh a, USource D l sh a, Fusion r D l sh a a)
+-- | Load type preserving wrapping arbirtary array into 'D'elayed representation.
+delay :: (USource r l sh a, USource D l sh a, Fusion r D l)
       => UArray r l sh a -> UArray D l sh a
 {-# INLINE delay #-}
 delay = B.fmap id
 
+-- | Wraps @('index' arr)@ into Delayed representation. Normally you shouldn't need
+-- to use this function. It may be dangerous for performance, because
+-- preferred 'Data.Yarr.Eval.Load'ing type of source array is ignored.
 delayShaped :: USource r l sh a => UArray r l sh a -> UArray D SH sh a
 {-# INLINE delayShaped #-}
 delayShaped arr =
     ShapeDelayed (extent arr) (touchArray arr) (force arr) (index arr)
 
-
+-- | In opposite to 'D'elayed (source) Delayed Target holds abstract /writing/
+-- function: @(sh -> a -> IO ())@. It may be used to perform arbitrarily tricky
+-- things, because no one obliges you to indeed write
+-- an element inside wrapped function.
 data DT
 
 instance Shape sh => Regular DT SH sh a where
@@ -183,9 +259,3 @@ instance Shape sh => NFData (UArray DT SH sh a) where
 instance Shape sh => UTarget DT SH sh a where
     write (ShapeDelayedTarget _ _ _ wr) = wr
     {-# INLINE write #-}
-
-delayShapedTarget :: UTarget r l sh a => UArray r l sh a -> UArray DT SH sh a
-{-# INLINE delayShapedTarget #-}
-delayShapedTarget tarr =
-    ShapeDelayedTarget
-        (extent tarr) (touchArray tarr) (force tarr) (write tarr)

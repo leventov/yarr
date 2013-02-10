@@ -1,8 +1,9 @@
 
 module Data.Yarr.Repr.Foreign (
-    F, FS, L,
+    F, Storable, L,
     newEmpty,
-    toForeignPtr, unsafeFromForeignPtr
+    toForeignPtr, unsafeFromForeignPtr,
+    FS,
 ) where
 
 import Foreign
@@ -18,7 +19,15 @@ import Data.Yarr.Shape
 import Data.Yarr.Utils.Storable
 import Data.Yarr.Utils.FixedVector as V
 
-
+-- | Foreign representation is the heart of Yarr framework.
+--
+-- Internally it holds raw pointer ('Ptr'), which makes indexing
+-- foreign arrays not slower than GHC's built-in primitive arrays,
+-- but without freeze/thaw boilerplate.
+--
+-- Foreign arrays are intented to hold all 'Storable' types and
+-- vectors of them (because there is a conditional instance of 'Storalbe'
+-- class for 'Vector's of 'Storable's too).
 data F
 
 instance Shape sh => Regular F L sh a where
@@ -43,9 +52,34 @@ instance (Shape sh, Storable a) => USource F L sh a where
     linearIndex (ForeignArray _ _ ptr) i = peekElemOff ptr i
     {-# INLINE linearIndex #-}
 
-instance (Shape sh, Storable a) => DefaultFusion F D L sh a b
+instance DefaultFusion F D L
 
-
+-- | Foreign Slice representation, /view/ slice representation
+-- for 'F'oreign arrays.
+--
+-- To understand Foreign Slices,
+-- suppose you have standard @image@ array of
+-- @'UArray' 'F' 'Dim2' ('VecList' 'N3' Word8)@ type.
+--
+-- It's layout in memory (with array indices):
+--
+-- @
+--  r g b | r g b | r g b | ...
+-- (0, 0)  (0, 1)  (0, 2)   ...
+-- @
+--
+-- @
+-- let (VecList [reds, greens, blues]) = 'slices' image
+-- -- reds, greens, blues :: UArray FS Dim2 Word8
+-- @
+--
+-- Now @blues@ just indexes each third byte on the same underlying
+-- memory block:
+--
+-- @
+-- ... b | ... b | ... b | ...
+--   (0, 0)  (0, 1)  (0, 2)...
+-- @
 data FS
 
 instance Shape sh => Regular FS L sh e where
@@ -53,7 +87,7 @@ instance Shape sh => Regular FS L sh e where
     data UArray FS L sh e =
         ForeignSlice
             !sh              -- Extent
-            !Int             -- Size of a vec in the parent array (in bytes)
+            !Int             -- Size of a vector in the parent array (in bytes)
             {-# NOUNPACK #-}
             !(ForeignPtr e)  -- Foreign ptr for GC
             !(Ptr e)         -- Plain ptr for fast memory access
@@ -72,7 +106,7 @@ instance (Shape sh, Storable e) => USource FS L sh e where
     linearIndex (ForeignSlice _ vsize _ ptr) i = peekByteOff ptr (i * vsize)
     {-# INLINE linearIndex #-}
 
-instance (Shape sh, Storable e) => DefaultFusion FS D L sh e b
+instance DefaultFusion FS D L
 
 
 instance (Shape sh, Vector v e, Storable e) => VecRegular F FS L sh v e where
@@ -94,7 +128,7 @@ instance (Shape sh, Storable a) => UTarget F L sh a where
     linearWrite (ForeignArray _ _ ptr) i x = pokeElemOff ptr i x
     {-# INLINE linearWrite #-}
 
-instance (Shape sh, Storable a) => Manifest F L F L sh a where
+instance (Shape sh, Storable a) => Manifest F F L sh a where
     new sh = do
         arr <- internalNew mallocBytes sh
         arr `deepseq` return ()
@@ -106,7 +140,10 @@ instance (Shape sh, Storable a) => Manifest F L F L sh a where
     {-# INLINE new #-}
     {-# INLINE freeze #-}
     {-# INLINE thaw #-}
-    
+
+-- | /O(1)/ allocates zero-initialized foreign array.
+-- 
+-- Needed because common 'new' function allocates array with garbage.
 newEmpty :: (Shape sh, Storable a, Integral a) => sh -> IO (UArray F L sh a)
 {-# INLINE newEmpty #-}
 newEmpty sh = do
@@ -126,20 +163,30 @@ internalNew allocBytes sh = do
 
 
 instance (Shape sh, Storable e) => UTarget FS L sh e where
-    write tarr@(ForeignSlice ext vsize _ ptr) sh x =
-        pokeByteOff ptr ((toIndex ext sh) * vsize) x
     linearWrite (ForeignSlice _ vsize _ ptr) i x =
         pokeByteOff ptr (i * vsize) x
-    {-# INLINE write #-}
     {-# INLINE linearWrite #-}
 
 instance (Shape sh, Vector v e, Storable e) => UVecTarget F FS L sh v e
 
-
+-- | /O(1)/ Returns pointer to memory block used by the given foreign
+-- array.
+--
+-- May be useful to reuse memory if you don't longer need the given array
+-- in the program:
+--
+-- @
+-- let brandNewData =
+--         'unsafeFromForeignPtr' ext ('castForeignPtr' (toForeignPtr arr))
+-- @
 toForeignPtr :: Shape sh => UArray F L sh a -> ForeignPtr a
 {-# INLINE toForeignPtr #-}
 toForeignPtr (ForeignArray _ fptr _) = fptr
 
+-- | /O(1)/ Wraps foreign ptr into foreign array.
+-- 
+-- The function is unsafe because it simply don't (and can't)
+-- check anything about correctness of produced array.
 unsafeFromForeignPtr :: Shape sh => sh -> ForeignPtr a -> IO (UArray F L sh a)
 {-# INLINE unsafeFromForeignPtr #-}
 unsafeFromForeignPtr sh fptr =

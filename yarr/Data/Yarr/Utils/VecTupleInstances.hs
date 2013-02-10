@@ -4,6 +4,9 @@ module Data.Yarr.Utils.VecTupleInstances where
 import Data.Vector.Fixed
 import Data.Yarr.Utils.VecTuple
 
+type N7 = S N6
+type N8 = S N7
+
 #define DERIV(n,clas) deriving instance clas e => clas (VecTuple (n) e)
 
 #define VEC_TUPLE_INST(N,con,tup)               \
@@ -16,5 +19,5 @@ VEC_TUPLE_INST(N3,VT_3,(e, e, e))
 VEC_TUPLE_INST(N4,VT_4,(e, e, e, e))
 VEC_TUPLE_INST(N5,VT_5,(e, e, e, e, e))
 VEC_TUPLE_INST(N6,VT_6,(e, e, e, e, e, e))
-VEC_TUPLE_INST(S N6,VT_7,(e, e, e, e, e, e, e))
-VEC_TUPLE_INST(S (S N6),VT_8,(e, e, e, e, e, e, e, e))
+VEC_TUPLE_INST(N7,VT_7,(e, e, e, e, e, e, e))
+VEC_TUPLE_INST(N8,VT_8,(e, e, e, e, e, e, e, e))

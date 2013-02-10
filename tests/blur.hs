@@ -13,7 +13,7 @@ import Data.Yarr.Benchmarking
 import Data.Yarr.Utils.FixedVector as V
 import Data.Yarr.Utils.Primitive as P
 
-blur :: UArray F L Dim2 Int -> UArray CV CV Dim2 Float
+blur :: UArray F L Dim2 Int -> UArray CV CVL Dim2 Float
 {-# INLINE blur #-}
 blur arr =
     let convolved =

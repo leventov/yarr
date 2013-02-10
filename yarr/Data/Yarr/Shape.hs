@@ -11,83 +11,137 @@ import Data.Yarr.Utils.LowLevelFlow
 import Data.Yarr.Utils.Primitive
 import Data.Yarr.Utils.Split
 
-type Fill sh a = (sh -> IO a) -> (sh -> a -> IO ()) -> sh -> sh -> IO ()
+-- | Alias to frequently used get-write-from-to arguments combo.
+type Fill sh a =
+    (sh -> IO a)          -- ^ Get
+    -> (sh -> a -> IO ()) -- ^ Write
+    -> sh                 -- ^ Start
+    -> sh                 -- ^ End
+    -> IO ()
 
+-- | Mainly for internal use.
+-- Abstracts top-left -- bottom-right pair of indices.
+type Block sh = (sh, sh)
+
+-- | Class for column-major, regular composite array indices.
 class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
+    -- | @0@, @(0, 0)@, @(0, 0, 0)@
     zero :: sh
+    -- | 'Dim1' @size@ is 'id', @size (3, 5) == 15@
     size :: sh -> Int
-
+    -- | @(1, 2, 3) \`plus\` (0, 0, 1) == (1, 2, 4)@
     plus :: sh -> sh -> sh
-    offset :: sh -> sh -> sh
+    -- | @(1, 2) \`minus\` (1, 0) == (0, 2)@ 
     minus :: sh -> sh -> sh
     minus = flip offset
-    negate :: sh -> sh
-    negate = minus zero 
+    -- | @offset == 'flip' 'minus'@
+    offset :: sh -> sh -> sh
+
+    -- | Converts linear, memory index of shaped array to shape index
+    -- without bound checks.
+    -- 
+    -- @fromLinear (3, 4) 5 == (1, 1)@
+    fromLinear
+        :: sh  -- ^ Extent of array
+        -> Int -- ^ Linear index
+        -> sh  -- ^ Shape index
+
+    -- | Opposite to 'fromLinear', converts composite array index
+    -- to linear, \"memory\" index without bounds checks.
+    --
+    -- 'id' for 'Dim1' shapes.
+    --
+    -- @toLinear (5, 5) (3, 0) == 15@
+    toLinear
+        :: sh  -- ^ Extent of array
+        -> sh  -- ^ Shape index
+        -> Int -- ^ Linear index
     
-    fromIndex :: sh -> Int -> sh
-    toIndex :: sh -> sh -> Int
-    
-    intersect :: (Arity n, n ~ S n0) => VecList n sh -> sh
+    -- | Component-wise minimum, returns maximum legal index
+    -- for all given array extents
+    intersect
+        :: (Arity n, n ~ S n0)
+        => VecList n sh -- ^ Several array extents
+        -> sh           -- ^ Maximum common shape index
+
+    -- | Component-wise maximum, used in "Data.Yarr.Convolution" implementation.
     complement :: (Arity n, n ~ S n0) => VecList n sh -> sh
-    intersectBlocks :: (Arity n, n ~ S n0) => VecList n (sh, sh) -> (sh, sh)
+
+    intersectBlocks :: (Arity n, n ~ S n0) => VecList n (Block sh) -> Block sh
     intersectBlocks blocks =
         let ss = V.map fst blocks
             es = V.map snd blocks
         in (complement ss, intersect es)
 
-    blockSize :: (sh, sh) -> Int
-    insideBlock :: (sh, sh) -> sh -> Bool
+    blockSize :: Block sh -> Int
+    insideBlock :: Block sh -> sh -> Bool
 
-    makeChunkRange :: Int -> sh -> sh -> (Int -> (sh, sh))
+    makeChunkRange :: Int -> sh -> sh -> (Int -> Block sh)
 
-    foldl :: (b -> sh -> a -> IO b) -- Generalized reduce
-          -> b                      -- Zero
-          -> (sh -> IO a)           -- Get
-          -> sh -> sh               -- Start, end
-          -> IO b                   -- Result
+    -- | Following 6 functions shouldn't be called directly,
+    -- they are intented to be passed as first argument
+    -- to 'Data.Yarr.Eval.Load' and not currently existring
+    -- @Fold@ functions.
+    foldl :: (b -> sh -> a -> IO b) -- ^ Generalized reduce
+          -> b                      -- ^ Zero
+          -> (sh -> IO a)           -- ^ Get
+          -> sh                     -- ^ Start
+          -> sh                     -- ^ End
+          -> IO b                   -- ^ Result
 
     unrolledFoldl
         :: forall a b uf. Arity uf
-        => uf                     -- Unroll factor
-        -> (a -> IO ())           -- Touch
-        -> (b -> sh -> a -> IO b) -- Generalized reduce
-        -> b                      -- Zero
-        -> (sh -> IO a)           -- Get
-        -> sh -> sh               -- Start, end
-        -> IO b                   -- Result
+        => uf                     -- ^ Unroll factor
+        -> (a -> IO ())           -- ^ Touch
+        -> (b -> sh -> a -> IO b) -- ^ Generalized reduce
+        -> b                      -- ^ Zero
+        -> (sh -> IO a)           -- ^ Get
+        -> sh                     -- ^ Start
+        -> sh                     -- ^ End
+        -> IO b                   -- ^ Result
 
-    foldr :: (sh -> a -> b -> IO b) -- Generalized reduce
-          -> b                      -- Zero
-          -> (sh -> IO a)           -- Get
-          -> sh -> sh               -- Start, end
-          -> IO b                   -- Result
+    foldr :: (sh -> a -> b -> IO b) -- ^ Generalized reduce
+          -> b                      -- ^ Zero
+          -> (sh -> IO a)           -- ^ Get
+          -> sh                     -- ^ Start
+          -> sh                     -- ^ End
+          -> IO b                   -- ^ Result
 
     unrolledFoldr
         :: forall a b uf. Arity uf
-        => uf                     -- Unroll factor
-        -> (a -> IO ())           -- Touch
-        -> (sh -> a -> b -> IO b) -- Generalized reduce
-        -> b                      -- Zero
-        -> (sh -> IO a)           -- Get
-        -> sh -> sh               -- Start, end
-        -> IO b                   -- Result
+        => uf                     -- ^ Unroll factor
+        -> (a -> IO ())           -- ^ Touch
+        -> (sh -> a -> b -> IO b) -- ^ Generalized reduce
+        -> b                      -- ^ Zero
+        -> (sh -> IO a)           -- ^ Get
+        -> sh                     -- ^ Start
+        -> sh                     -- ^ End
+        -> IO b                   -- ^ Result
 
+    -- | Standard fill without unrolling.
+    -- To avoid premature optimization just type @fill@
+    -- each time you want to 'Data.Yarr.Eval.Load' array
+    -- to manifest representation.
     fill :: Fill sh a
 
     unrolledFill
         :: forall a uf. Arity uf
-        => uf                 -- Unroll factor
-        -> (a -> IO ())       -- Touch
+        => uf                 -- ^ Unroll factor
+        -> (a -> IO ())       -- ^ Touch
         -> Fill sh a
 
     {-# INLINE minus #-}
-    {-# INLINE negate #-}
     {-# INLINE intersectBlocks #-}
 
-
-class (Shape sh, Arity (BC sh)) => BlockShape sh where
-    type BC sh
-    clipBlock :: (sh, sh) -> (sh, sh) -> VecList (BC sh) (sh, sh)
+-- | For internal use.
+--
+-- /TODO:/ implement for 'Dim3' and merge with 'Shape' class
+class (Shape sh, Arity (BorderCount sh)) => BlockShape sh where
+    type BorderCount sh
+    clipBlock
+        :: Block sh                            -- ^ Outer block
+        -> Block sh                            -- ^ Inner block
+        -> VecList (BorderCount sh) (Block sh) -- ^ Shavings
 
 
 
@@ -98,8 +152,8 @@ instance Shape Dim1 where
     size = id
     plus = (+)
     offset off i = i - off
-    fromIndex _ i = i
-    toIndex _ i = i
+    fromLinear _ i = i
+    toLinear _ i = i
     intersect = V.minimum
     complement = V.maximum
 
@@ -134,8 +188,8 @@ instance Shape Dim1 where
     {-# INLINE size #-}
     {-# INLINE plus #-}
     {-# INLINE offset #-}
-    {-# INLINE fromIndex #-}
-    {-# INLINE toIndex #-}
+    {-# INLINE fromLinear #-}
+    {-# INLINE toLinear #-}
     {-# INLINE intersect #-}
     {-# INLINE complement #-}
     {-# INLINE blockSize #-}
@@ -152,7 +206,7 @@ instance Shape Dim1 where
 
 
 instance BlockShape Dim1 where
-    type BC Dim1 = N2
+    type BorderCount Dim1 = N2
     clipBlock outer@(os, oe) inner =
         let intersection@(is, ie) = intersectBlocks (vl_2 inner outer)
         in (vl_2 (os, is) (ie, oe))
@@ -169,8 +223,8 @@ instance Shape Dim2 where
     size (h, w) = h * w
     plus (y1, x1) (y2, x2) = (y1 + y2, x1 + x2)
     offset (offY, offX) (y, x) = (y - offY, x - offX)
-    fromIndex (_, w) i = i `quotRem` w
-    toIndex (_, w) (y, x) = y * w + x
+    fromLinear (_, w) i = i `quotRem` w
+    toLinear (_, w) (y, x) = y * w + x
     
     intersect shapes =
         let hs = V.map fst shapes
@@ -295,8 +349,8 @@ instance Shape Dim2 where
     {-# INLINE size #-}
     {-# INLINE plus #-}
     {-# INLINE offset #-}
-    {-# INLINE fromIndex #-}
-    {-# INLINE toIndex #-}
+    {-# INLINE fromLinear #-}
+    {-# INLINE toLinear #-}
     {-# INLINE intersect #-}
     {-# INLINE complement #-}
     {-# INLINE blockSize #-}
@@ -313,7 +367,7 @@ instance Shape Dim2 where
 
 
 instance BlockShape Dim2 where
-    type BC Dim2 = N4
+    type BorderCount Dim2 = N4
     clipBlock outer@((osy, osx), (oey, oex)) inner =
         let intersection@((isy, isx), (iey, iex)) =
                 intersectBlocks (vl_2 inner outer)
@@ -324,15 +378,21 @@ instance BlockShape Dim2 where
 
     {-# INLINE clipBlock #-}
 
-
+-- | 2D-unrolling to maximize profit from
+-- \"Global value numbering\" LLVM optimization.
+--
+-- Example:
+--
+-- @blurred <- 'Data.Yarr.Eval.compute' ('Data.Yarr.Eval.loadP' (dim2BlockFill 'n1' 'n4' 'touch')) delayedBlurred@
 dim2BlockFill
     :: forall a bsx bsy. (Arity bsx, Arity bsy)
-    => bsx                  -- block size by x
-    -> bsy                  -- block size by y
-    -> (a -> IO ())         -- touch
-    -> (Dim2 -> IO a)       -- get
-    -> (Dim2 -> a -> IO ()) -- write
-    -> Dim2 -> Dim2         -- start, end
+    => bsx                  -- ^ Block size by x
+    -> bsy                  -- ^ Block size by y
+    -> (a -> IO ())         -- ^ Touch
+    -> (Dim2 -> IO a)       -- ^ Get
+    -> (Dim2 -> a -> IO ()) -- ^ Write
+    -> Dim2                 -- ^ Start
+    -> Dim2                 -- ^ End 
     -> IO ()
 {-# INLINE dim2BlockFill #-}
 dim2BlockFill blockSizeX blockSizeY tch =
@@ -381,12 +441,12 @@ instance Shape Dim3 where
     size (d, h, w) = d * h * w
     plus (z1, y1, x1) (z2, y2, x2) = (z1 + z2, y1 + y2, x1 + x2)
     offset (offZ, offY, offX) (z, y, x) = (z - offZ, y - offY, x - offX)
-    fromIndex (_, h, w) i =
+    fromLinear (_, h, w) i =
         let (i', x) = i `quotRem` w
             (z, y) = i' `quotRem` h
         in (z, y, x)
 
-    toIndex (_, h, w) (z, y, x) = z * (h * w) + y * w + x
+    toLinear (_, h, w) (z, y, x) = z * (h * w) + y * w + x
 
     intersect shapes =
         let ds = V.map (\(d, _, _) -> d) shapes
@@ -503,8 +563,8 @@ instance Shape Dim3 where
     {-# INLINE size #-}
     {-# INLINE plus #-}
     {-# INLINE offset #-}
-    {-# INLINE fromIndex #-}
-    {-# INLINE toIndex #-}
+    {-# INLINE fromLinear #-}
+    {-# INLINE toLinear #-}
     {-# INLINE intersect #-}
     {-# INLINE complement #-}
     {-# INLINE blockSize #-}

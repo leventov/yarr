@@ -1,5 +1,14 @@
 
-module Data.Yarr.Convolution.StaticStencils where
+module Data.Yarr.Convolution.StaticStencils (
+    -- ** Dim1 stencils
+    Dim1Stencil(..), dim1St,
+    dConvolveDim1WithStaticStencil, convolveDim1WithStaticStencil,
+
+    -- ** Dim2 stencils
+    Dim2Stencil(..), dim2St,
+    dConvolveShDim2WithStaticStencil, convolveShDim2WithStaticStencil,
+    dConvolveLinearDim2WithStaticStencil, convolveLinearDim2WithStaticStencil
+) where
 
 import Prelude as P
 import Control.Monad
@@ -15,13 +24,34 @@ import Data.Yarr.Convolution.Repr
 import Data.Yarr.Utils.FixedVector as V
 import Data.Yarr.Utils.Primitive
 
+-- | Generalized static 'Dim1' stencil.
 data Dim1Stencil size a b c =
-    Dim1Stencil
-        size                  -- Stencil size
-        (VecList size b)      -- Stencil values
-        (c -> a -> b -> IO c) -- Generalized reduce function
-        c                     -- Reduce zero
+    Dim1Stencil {
+        dim1StencilSize   :: size,
+        dim1StencilValues :: (VecList size b),
+        dim1StencilReduce :: (c -> a -> b -> IO c), -- ^ Generalized reduce function
+        dim1StencilZero   :: c                      -- ^ Reduce zero
+    }
 
+-- | QuasiQuoter for producing typical numeric convolving 'Dim1' stencil,
+-- which effectively skips unnecessary multiplications.
+--
+-- @[dim1St| 1 4 6 4 1 |]@
+--
+-- Produces
+--
+-- @
+--'Dim1Stencil'
+--    'n5'
+--    ('VecList'
+--       [\ acc a -> return (acc + a),
+--        \ acc a -> (return $ (acc + (4 * a))),
+--        \ acc a -> (return $ (acc + (6 * a))),
+--        \ acc a -> (return $ (acc + (4 * a))),
+--        \ acc a -> return (acc + a)])
+--    (\ acc a reduce -> reduce acc a)
+--    0
+-- @
 dim1St :: QuasiQuoter
 dim1St = QuasiQuoter parseDim1Stencil undefined undefined undefined
 
@@ -35,13 +65,48 @@ parseDim1Stencil s =
     in [| Dim1Stencil $sz $vecList (\acc a reduce -> reduce acc a) 0 |]
 
 
+-- | Generalized static 'Dim2' stencil.
 data Dim2Stencil sx sy a b c =
-    Dim2Stencil
-        sx sy                       -- Stencil size by X and Y
-        (VecList sy (VecList sx b)) -- Stencil values
-        (c -> a -> b -> IO c)       -- Generalized reduce function
-        c                           -- Reduce zero
+    Dim2Stencil {
+        dim2StencilSizeX :: sx,
+        dim2StencilSizeY :: sy,
+        dim2StencilValues :: (VecList sy (VecList sx b)), -- ^ Stencil values, packed in nested vectors
+        dim2StencilReduce :: (c -> a -> b -> IO c),       -- ^ Generalized reduce function
+        dim2StencilZero :: c                              -- ^ Reduce zero
+    }
 
+-- | Most useful 'Dim2' stencil producer.
+--
+-- Typing
+--
+-- @
+-- [dim2St| 1   2   1
+--          0   0   0
+--         -1  -2  -1 |]
+-- @
+--
+-- Results to
+--
+-- @
+-- 'Dim2Stencil'
+--  'n3'
+--  'n3'
+--  ('VecList'
+--     ['VecList'
+--        [\ acc a -> return (acc + a),
+--         \ acc a -> (return $ (acc + (2 * a))),
+--         \ acc a -> return (acc + a)],
+--      'VecList'
+--        [\ acc _ -> return acc,
+--         \ acc _ -> return acc,
+--         \ acc _ -> return acc],
+--      'VecList'
+--        [\ acc a -> return (acc - a),
+--         \ acc a -> (return $ (acc + (-2 * a))),
+--         \ acc a -> return (acc - a)]])
+--  (\ acc a reduce -> reducej acc a)
+--  0
+-- @
 dim2St :: QuasiQuoter
 dim2St = QuasiQuoter parseDim2Stencil undefined undefined undefined
 
@@ -74,12 +139,14 @@ justNonZero v
     | otherwise = [| \acc a -> return $ acc + $(litE (integerL v)) * a |]
 
 
-
+-- | Curried version of 'convolveDim1WithStaticStencil'
+-- with border get clamping indices out of bounds to
+-- @0@ or @('extent' source)@.
 dConvolveDim1WithStaticStencil
     :: (StencilOffsets s so eo, USource r l Dim1 a)
-    => Dim1Stencil s a b c
-    -> UArray r l Dim1 a
-    -> UArray CV CV Dim1 c
+    => Dim1Stencil s a b c  -- ^ Convolution stencil
+    -> UArray r l Dim1 a    -- ^ Source array
+    -> UArray CV CVL Dim1 c -- ^ Fused convolved result array
 {-# INLINE dConvolveDim1WithStaticStencil #-}
 dConvolveDim1WithStaticStencil =
     convolveDim1WithStaticStencil
@@ -87,14 +154,17 @@ dConvolveDim1WithStaticStencil =
             let !maxI = len - 1
             in linearIndex arr <=< (clampM' 0 maxI))
 
-
+-- | Convolves 'Dim1' array with static stencil.
 convolveDim1WithStaticStencil
     :: forall r l s so eo a b c.
        (USource r l Dim1 a, StencilOffsets s so eo)
     => (UArray r l Dim1 a -> Dim1 -> Dim1 -> IO a)
-    -> Dim1Stencil s a b c
-    -> UArray r l Dim1 a
-    -> UArray CV CV Dim1 c
+                             -- ^ (Source array -> Extent of this array ->
+                             --   Index (may be out of bounds) -> Result value):
+                             --   Border index (to treat indices near to bounds)
+    -> Dim1Stencil s a b c   -- ^ Convolution stencil
+    -> UArray r l Dim1 a     -- ^ Source array
+    -> UArray CV CVL Dim1 c  -- ^ Fused convolved result array
 {-# INLINE convolveDim1WithStaticStencil #-}
 convolveDim1WithStaticStencil
         borderIndex (Dim1Stencil _ stencil reduce z) arr =
@@ -120,7 +190,7 @@ convolveDim1WithStaticStencil
         (startOff, len - endOff) (sget (linearIndex arr))
 
 
-
+-- | Clamps 'Dim2' index out of bounds to the nearest one inside bounds.
 dim2OutClamp
     :: USource r l Dim2 a
     => UArray r l Dim2 a
@@ -135,25 +205,41 @@ dim2OutClamp arr (shY, shX) =
             x' <- clampM' 0 maxX x
             index arr (y', x')
 
-
+-- | Defined as
+-- @dConvolveShDim2WithStaticStencil = 'convolveShDim2WithStaticStencil' 'dim2OutClamp'@
+--
+-- Example:
+--
+-- @
+--let gradientX =
+--        dConvolveLinearDim2WithStaticStencil
+--            ['dim2St'| -1  0  1
+--                     -2  0  2
+--                     -1  0  1 |]
+--            image
+-- @
 dConvolveShDim2WithStaticStencil
     :: (StencilOffsets sx sox eox, StencilOffsets sy soy eoy,
         USource r SH Dim2 a)
-    => Dim2Stencil sx sy a b c
-    -> UArray r SH Dim2 a
-    -> UArray CV CV Dim2 c
+    => Dim2Stencil sx sy a b c  -- ^ Convolution stencil
+    -> UArray r SH Dim2 a       -- ^ Source array
+    -> UArray CV CVL Dim2 c     -- ^ Fused convolved result array
 {-# INLINE dConvolveShDim2WithStaticStencil #-}
 dConvolveShDim2WithStaticStencil =
     convolveShDim2WithStaticStencil dim2OutClamp
 
+-- | Convolves 'Dim2' array with 'SH'aped load type with static stencil.
 convolveShDim2WithStaticStencil
     :: forall r sx sox eox sy soy eoy a b c.
        (USource r SH Dim2 a,
         StencilOffsets sx sox eox, StencilOffsets sy soy eoy)
     => (UArray r SH Dim2 a -> Dim2 -> Dim2 -> IO a)
-    -> Dim2Stencil sx sy a b c
-    -> UArray r SH Dim2 a
-    -> UArray CV CV Dim2 c
+                               -- ^ (Source array -> Extent of this array ->
+                               --   Index (may be out of bounds) -> Result value):
+                               --   Border index (to treat indices near to bounds)
+    -> Dim2Stencil sx sy a b c -- ^ Convolution stencil
+    -> UArray r SH Dim2 a      -- ^ Source array
+    -> UArray CV CVL Dim2 c    -- ^ Fused convolved result array
 {-# INLINE convolveShDim2WithStaticStencil #-}
 convolveShDim2WithStaticStencil
         borderIndex (Dim2Stencil _ _ stencil reduce z) arr =
@@ -190,25 +276,31 @@ convolveShDim2WithStaticStencil
         sh (touchArray arr) (force arr)
         (sget (borderIndex arr sh)) (tl, br) (sget (index arr))
 
-
+-- | Analog of 'dConvolveShDim2WithStaticStencil'
+-- to convolve arrays with 'L'inear load index.
 dConvolveLinearDim2WithStaticStencil
     :: (StencilOffsets sx sox eox, StencilOffsets sy soy eoy,
         USource r L Dim2 a)
-    => Dim2Stencil sx sy a b c
-    -> UArray r L Dim2 a
-    -> UArray CV CV Dim2 c
+    => Dim2Stencil sx sy a b c  -- ^ Convolution stencil
+    -> UArray r L Dim2 a        -- ^ Source array
+    -> UArray CV CVL Dim2 c     -- ^ Fused convolved result array
 {-# INLINE dConvolveLinearDim2WithStaticStencil #-}
 dConvolveLinearDim2WithStaticStencil =
     convolveLinearDim2WithStaticStencil dim2OutClamp
 
+-- | Analog of 'convolveShDim2WithStaticStencil'
+-- to conv
 convolveLinearDim2WithStaticStencil
     :: forall r sx sox eox sy soy eoy a b c.
        (StencilOffsets sx sox eox, StencilOffsets sy soy eoy,
         USource r L Dim2 a)
     => (UArray r L Dim2 a -> Dim2 -> Dim2 -> IO a)
-    -> Dim2Stencil sx sy a b c
-    -> UArray r L Dim2 a
-    -> UArray CV CV Dim2 c
+                               -- ^ (Source array -> Extent of this array ->
+                               --   Index (may be out of bounds) -> Result value):
+                               --   Border index (to treat indices near to bounds)
+    -> Dim2Stencil sx sy a b c -- ^ Convolution stencil
+    -> UArray r L Dim2 a       -- ^ Source array
+    -> UArray CV CVL Dim2 c    -- ^ Fused convolved result array
 {-# INLINE convolveLinearDim2WithStaticStencil #-}
 convolveLinearDim2WithStaticStencil
         borderIndex (Dim2Stencil _ _ stencil reduce z) arr =
@@ -245,7 +337,7 @@ convolveLinearDim2WithStaticStencil
                 (-startOffY)
                 succ
                 (\acc iy xv ->
-                    let lbase = toIndex sh (y + iy, x)
+                    let lbase = toLinear sh (y + iy, x)
                     in V.iifoldM
                         (-startOffX)
                         succ
