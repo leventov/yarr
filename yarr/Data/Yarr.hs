@@ -12,7 +12,7 @@
         * /representation index/ - the first type argument.
 
         * /load type index/ -
-          the second argument of the type family. Pair of /load indixes/,
+          the second argument of the type family. Pair of /load indexes/,
           from source and target array determines how arrays will be
           loaded one to another. Load index is mostly internal thing.
           See 'Load' class for details.
@@ -39,7 +39,7 @@
           you should firstly allocate entire 'F' array.
 
         * /Delayed/, or /fused/ representations: 'D'elayed
-          and 'Data.Yarr.Convolution.Repr.CV' (ConVolved).
+          and 'Data.Yarr.Convolution.Repr.CV' (ConVoluted).
           Arrays of these types aren't really exist in memory.
           Finally they should be loaded to manifest arrays.
 
@@ -70,7 +70,7 @@
     Currently there is only one option \"out of the box\" - to load image :)
     See "Data.Yarr.IO.Image" module in @yarr-image-io@ package.
 
-    /How to fuse array:/
+    /How to map and zip arrays:/
 
     See 'DefaultFusion' class and functions in "Data.Yarr.Flow" module.
 
@@ -86,7 +86,7 @@
 
     @vecLengths <- 'Data.Yarr.Eval.compute' ('Data.Yarr.Eval.loadP' 'Data.Yarr.Shape.fill' 'Data.Yarr.Eval.caps') delayedVecLengths@
 
-    /Working examples:/ <https://github.com/leventov/yarr/tree/master/tests>
+    [@Working examples@] <https://github.com/leventov/yarr/tree/master/tests>
 
     /How to write fast program:/
 

@@ -25,6 +25,12 @@ import Data.Yarr.Utils.FixedVector as V
 -- foreign arrays not slower than GHC's built-in primitive arrays,
 -- but without freeze/thaw boilerplate.
 --
+-- Foreign arrays are very permissible, for example you can easily
+-- use them as source and target of 'Data.Yarr.Eval.Load'ing operation simultaneously,
+-- achieving old good in-place @C-@style array modifying:
+--
+-- @'Data.Yarr.Eval.loadS' 'fill' ('dmap' 'sqrt' arr) arr@
+--
 -- Foreign arrays are intented to hold all 'Storable' types and
 -- vectors of them (because there is a conditional instance of 'Storalbe'
 -- class for 'Vector's of 'Storable's too).
@@ -176,8 +182,8 @@ instance (Shape sh, Vector v e, Storable e) => UVecTarget F FS L sh v e
 -- in the program:
 --
 -- @
--- let brandNewData =
---         'unsafeFromForeignPtr' ext ('castForeignPtr' (toForeignPtr arr))
+-- brandNewData <-
+--    'unsafeFromForeignPtr' ext ('castForeignPtr' (toForeignPtr arr))
 -- @
 toForeignPtr :: Shape sh => UArray F L sh a -> ForeignPtr a
 {-# INLINE toForeignPtr #-}

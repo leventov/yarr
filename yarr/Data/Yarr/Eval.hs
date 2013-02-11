@@ -151,7 +151,7 @@ class (Load r l tr tl sh a, LoadIndex l tl sh ~ sh) =>
         -> IO ()
 
 
--- | Class abstracts /separated in time and space/ loading of one array type
+-- | Class abstracts /separated in time and space/ loading 'slices' of one array type
 -- to another. Result of running functions with @-Slices-@ infix
 -- /is always identical/ to result of running corresponding function from
 -- 'Load' class. 'VecLoad' and 'RangeVecLoad' are just about performance.
@@ -185,7 +185,7 @@ class (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
        Load slr l tslr tl sh e, Dim v ~ Dim v2) =>
         VecLoad r slr l tr tslr tl sh v v2 e where
 
-    -- | /O(n)/ Entirely, element-wise loads vectors from source to target 
+    -- | /O(n)/ Entirely, slice-wise loads vectors from source to target 
     -- in parallel.
     -- 
     -- Example:
@@ -201,7 +201,7 @@ class (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
         -> UArray tr tl sh (v2 e)     -- ^ Target array of vectors
         -> IO ()
 
-    -- | /O(n)/ Sequentially, element-wise loads vectors from source to target.
+    -- | /O(n)/ Sequentially loads vectors from source to target, slice by slice.
     loadSlicesS
         :: Fill (LoadIndex l tl sh) e -- ^ Fill function to work /on slices/
         -> UArray r l sh (v e)        -- ^ Source array of vectors
@@ -209,12 +209,12 @@ class (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
         -> IO ()
 
 -- | This class extends 'VecLoad' just like 'RangeLoad' extends 'Load'.
--- It abstracts vector-element-wise loading from one array type to
+-- It abstracts slice-wise loading from one array type to
 -- another in specified range.
 class (VecLoad r slr l tr tslr tl sh v v2 e, LoadIndex l tl sh ~ sh) =>
         RangeVecLoad r slr l tr tslr tl sh v v2 e where
 
-    -- | /O(n)/ Loads vectors from source to target in specified range element-wise
+    -- | /O(n)/ Loads vectors from source to target in specified range, slice-wise,
     -- in parallel.
     rangeLoadSlicesP
         :: Fill sh e              -- ^ Fill function to work /on slices/
@@ -225,8 +225,8 @@ class (VecLoad r slr l tr tslr tl sh v v2 e, LoadIndex l tl sh ~ sh) =>
         -> sh                     -- ^ and bottom-right corners of range to load
         -> IO ()
 
-    -- | /O(n)/ Sequentially, element-wise loads vectors from source to target
-    -- in specified range.
+    -- | /O(n)/ Sequentially loads vector elements from source to target
+    -- in specified range, slice by slice.
     rangeLoadSlicesS
         :: Fill sh e              -- ^ Fill function to work /on slices/
         -> UArray r l sh (v e)    -- ^ Source array of vectors

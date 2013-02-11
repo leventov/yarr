@@ -1,6 +1,8 @@
 Name:                yarr-image-io
 Version:             0.9.1
 Synopsis:            Image IO for Yarr library
+Description:
+    @repa-devil@ package, adapted to @yarr@ library.
 License:             MIT
 License-file:        LICENSE
 Author:              Don Stewart, Raphael Javaux, Roman Leventov
@@ -9,6 +11,11 @@ Bug-reports:         https://github.com/leventov/yarr/issues
 Category:            Graphics
 Build-type:          Simple
 Cabal-version:       >= 1.8
+
+source-repository head
+    type:     git
+    location: https://github.com/leventov/yarr.git
+    subdir:   yarr-image-io
 
 Library
     build-depends:

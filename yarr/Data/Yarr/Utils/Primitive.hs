@@ -19,6 +19,9 @@ class Touchable a where
     -- | The function intented to be passed as 3rd parameter
     -- to @unrolled-@ functions in 'Data.Yarr.Shape.Shape' class
     -- and 'Data.Yarr.Shape.dim2BlockFill'.
+    --
+    -- If your loading operation is strictly local by elements
+    -- (in most cases), use 'noTouch' instead of this function.
     touch :: a -> IO ()
 
 instance Touchable Bool where
@@ -48,7 +51,7 @@ instance (Vector v e, Touchable e) => Touchable (v e) where
     touch = V.mapM_ touch
     {-# INLINE touch #-}
 
--- | Alias to @(\_ -> return ())@
+-- | Alias to @(\_ -> return ())@.
 noTouch :: a -> IO ()
 {-# INLINE noTouch #-}
 noTouch _ = return ()

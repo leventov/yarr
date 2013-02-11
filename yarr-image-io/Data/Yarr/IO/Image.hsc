@@ -43,12 +43,24 @@ data Image = RGBA (UArray F L Dim2 (VecList N4 Word8))
            | BGR (UArray F L Dim2 (VecList N3 Word8))
            | Grey (UArray F L Dim2 Word8)
 
+-- | @readRGBVectors = 'readRGB' 'construct'@
 readRGBVectors
     :: (Vector v Word8, Dim v ~ N3)
     => Image -> UArray D L Dim2 (v Word8)
 readRGBVectors = readRGB construct
 
-readRGB :: (Fun N3 Word8 a) -> Image -> UArray D L Dim2 a
+-- | Fuction to uniformly import images of any type.
+--
+-- Example:
+--
+-- @
+-- anyImage <- 'readImage' \"lena.png\"
+-- let image = readRGB (\r g b -> ...) anyImage
+-- @
+readRGB
+    :: (Fun N3 Word8 a) -- ^ Passed red, green, blue component in @0-255@ range
+    -> Image            -- ^ Image to import
+    -> UArray D L Dim2 a
 readRGB fmapRGB@(Fun mapRGB) image =
     case image of
         (RGBA arr) ->
@@ -62,7 +74,7 @@ readRGB fmapRGB@(Fun mapRGB) image =
         (Grey arr) ->
             dmap (\l -> mapRGB l l l) arr
 
-
+-- | Reads 'Image' from file.
 readImage :: FilePath -> IO Image
 readImage f = do
     ilInit
@@ -75,7 +87,7 @@ readImage f = do
 
     toYarr name
 
-
+-- | Writes 'Image' to file.
 writeImage :: FilePath -> Image -> IO ()
 writeImage f i = do
     ilInit

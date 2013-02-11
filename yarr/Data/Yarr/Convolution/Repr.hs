@@ -15,14 +15,14 @@ import Data.Yarr.Utils.FixedVector as V
 -- | Convolution fused representation internally keeps 2 element getters:
 --
 --  * slow /border get/, which checks every index from applied stencil
---    to lay inside extent of underlying (convolved) source array.
+--    to lay inside extent of underlying source array.
 --
 --  * fast /center get/, which don't worries about bound checks
 --
 -- and 'center' 'Block'.
 data CV
 
--- | ConVolution 'Data.Yarr.Eval.Load' type is specialized to load convolved arrays.
+-- | ConVolution 'Data.Yarr.Eval.Load' type is specialized to load convoluted arrays.
 --
 -- It loads 'center' with 'centerGet' and borders outside the center with
 -- 'borderGet' separately.
@@ -30,7 +30,7 @@ data CV
 -- It is even able to distribute quite expensive border loads evenly between
 -- available threads while parallel load.
 --
--- /TODO:/ element-wise Loading convolved arrays isn't inlined propely
+-- /TODO:/ element-wise Loading convoluted arrays isn't inlined propely
 -- with unrolled 'Fill'ing ('unrolledFill', 'dim2BlockFill').
 -- However, with simple 'fill' performance is OK.
 --
@@ -60,12 +60,12 @@ instance Shape sh => Regular CV CVL sh a where
     {-# INLINE extent #-}
     {-# INLINE touchArray #-}
 
--- | Retreives fast center get from convolved array
+-- | Retreives fast center get from convoluted array
 -- and wraps it into 'D'elayed array.
 --
 -- Remember that array indexing in Yarr is always zero-based,
 -- so indices in result array are shifted by top-level corner offset
--- of given convolved array.
+-- of given convoluted array.
 justCenter :: Shape sh => UArray CV CVL sh a -> UArray D SH sh a
 {-# INLINE justCenter #-}
 justCenter (Convoluted sh tch iforce _ (tl, br) cget) =

@@ -4,16 +4,16 @@ module Data.Yarr.Flow (
     -- * Basic fusion
     DefaultFusion(..),
 
+    -- ** 'D'elayed flow and zipping shortcuts
+    dzipWith, dzipWith3, D, delay,
+
     -- * Vector fusion
     SE, dmapElems, dmapElemsM,
     dzipElems2, dzipElems2M, dzipElems3, dzipElems3M,
     dzipElems, dzipElemsM,
 
     -- * High level shortcuts
-    traverse, zipElems, mapElems, mapElemsM,
-    
-    -- ** 'D'elayed flow and zipping shortcuts
-    D, delay, dzipWith, dzipWith3
+    traverse, zipElems, mapElems, mapElemsM
 ) where
 
 import Data.Yarr.Base
@@ -95,11 +95,13 @@ mapElemsM f = dmapElemsM (V.replicate f)
 
 -- | /O(1)/ Generalized zipping of 2 arrays.
 --
+-- Main basic \"zipWith\" in Yarr.
+--
 -- Although sighature of this function has extremely big predicate,
 -- it is more permissible than 'dzip2' counterpart, because source arrays
 -- shouldn't be of the same type.
 --
--- implemented by means of 'delay' function (source arrays are simply
+-- Implemented by means of 'delay' function (source arrays are simply
 -- delayed before zipping).
 dzipWith
     :: (USource r1 l sh a, DefaultFusion r1 D l, USource D l sh a,

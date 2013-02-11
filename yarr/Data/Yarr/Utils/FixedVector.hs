@@ -8,9 +8,10 @@ module Data.Yarr.Utils.FixedVector (
     zipWith3, zipWithM_, apply, all, any,
     iifoldl, iifoldM,
 
-    -- * Shortcuts
+    -- * Aliases and shortcuts
     -- ** Arity
     N7, N8,
+    -- | Arity \"instances\" -- aliases to 'undefined'.
     n1, n2, n3, n4, n5, n6, n7, n8,
     
     -- ** VecList makers

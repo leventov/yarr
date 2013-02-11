@@ -148,10 +148,8 @@ class (VecRegular r slr l sh v e, USource r l sh (v e), USource slr l sh e) =>
 --
 -- Minimum complete defenition: 'fmapM', 'fzip2M', 'fzip3M' and 'fzipM'.
 --
--- The class doesn't have vector counterpart, it's role play top level functions
--- from "Data.Yarr.Repr.Separate" module: 'Data.Yarr.Repr.Separate.fmapElems',
--- 'Data.Yarr.Repr.Separate.fmapElemsM', 'Data.Yarr.Repr.Separate.fzipElems'
--- and 'Data.Yarr.Repr.Separate.fzipElemsM'.
+-- The class doesn't have vector counterpart, it's role play top-level functions
+-- from "Data.Yarr.Repr.Separate" module.
 class Fusion r fr l where
     fmap :: (USource r l sh a, USource fr l sh b)
          => (a -> b) -- ^ .
@@ -222,11 +220,12 @@ class Fusion r fr l where
 --
 -- All functions are already defined, using non-injective versions from 'Fusion' class.
 --
--- The class doesn't have vector counterpart, it's role play 4 top level functions:
--- 'Data.Yarr.Flow.dmapElems', 'Data.Yarr.Flow.dmapElemsM', 'Data.Yarr.Flow.dzipElems'
--- and 'Data.Yarr.Flow.dzipElemsM'.
+-- The class doesn't have vector counterpart, it's role play top-level functions
+-- from "Data.Yarr.Repr.Separate" module.
 class Fusion r fr l => DefaultFusion r fr l | r -> fr where
     -- | /O(1)/ Pure element mapping.
+    --
+    -- Main basic \"map\" in Yarr.
     dmap :: (USource r l sh a, USource fr l sh b)
          => (a -> b)         -- ^ Element mapper function
          -> UArray r l sh a  -- ^ Source array

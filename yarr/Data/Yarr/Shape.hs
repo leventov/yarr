@@ -1,3 +1,4 @@
+{-# LANGUAGE InstanceSigs #-}
 
 module Data.Yarr.Shape where
 
@@ -12,6 +13,9 @@ import Data.Yarr.Utils.Primitive
 import Data.Yarr.Utils.Split
 
 -- | Alias to frequently used get-write-from-to arguments combo.
+--
+-- Passed as 1st parameter of all 'Data.Yarr.Eval.Load'ing functions
+-- from "Data.Yarr.Eval" module.
 type Fill sh a =
     (sh -> IO a)          -- ^ Get
     -> (sh -> a -> IO ()) -- ^ Write
@@ -92,7 +96,7 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
     unrolledFoldl
         :: forall a b uf. Arity uf
         => uf                     -- ^ Unroll factor
-        -> (a -> IO ())           -- ^ Touch
+        -> (a -> IO ())           -- ^ 'touch' or 'noTouch'
         -> (b -> sh -> a -> IO b) -- ^ Generalized reduce
         -> b                      -- ^ Zero
         -> (sh -> IO a)           -- ^ Get
@@ -110,7 +114,7 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
     unrolledFoldr
         :: forall a b uf. Arity uf
         => uf                     -- ^ Unroll factor
-        -> (a -> IO ())           -- ^ Touch
+        -> (a -> IO ())           -- ^ 'touch' or 'noTouch'
         -> (sh -> a -> b -> IO b) -- ^ Generalized reduce
         -> b                      -- ^ Zero
         -> (sh -> IO a)           -- ^ Get
@@ -127,8 +131,9 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
     unrolledFill
         :: forall a uf. Arity uf
         => uf                 -- ^ Unroll factor
-        -> (a -> IO ())       -- ^ Touch
-        -> Fill sh a
+        -> (a -> IO ())       -- ^ 'touch' or 'noTouch'
+        -> Fill sh a          -- ^ Result curried function
+                              --   to pass to loading functions.
 
     {-# INLINE minus #-}
     {-# INLINE intersectBlocks #-}
@@ -386,14 +391,11 @@ instance BlockShape Dim2 where
 -- @blurred <- 'Data.Yarr.Eval.compute' ('Data.Yarr.Eval.loadP' (dim2BlockFill 'n1' 'n4' 'touch')) delayedBlurred@
 dim2BlockFill
     :: forall a bsx bsy. (Arity bsx, Arity bsy)
-    => bsx                  -- ^ Block size by x
+    => bsx                  -- ^ Block size by x. Use 'n1'-'n8' values.
     -> bsy                  -- ^ Block size by y
-    -> (a -> IO ())         -- ^ Touch
-    -> (Dim2 -> IO a)       -- ^ Get
-    -> (Dim2 -> a -> IO ()) -- ^ Write
-    -> Dim2                 -- ^ Start
-    -> Dim2                 -- ^ End 
-    -> IO ()
+    -> (a -> IO ())         -- ^ 'touch' or 'noTouch'
+    -> Fill Dim2 a          -- ^ Result curried function
+                            --   to pass to loading functions.
 {-# INLINE dim2BlockFill #-}
 dim2BlockFill blockSizeX blockSizeY tch =
     \get write ->

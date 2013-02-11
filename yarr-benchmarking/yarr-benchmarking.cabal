@@ -1,6 +1,11 @@
 Name:                yarr-benchmarking
 Version:             0.9.1
 Synopsis:            Yet another benchmarking suite for Yarr library
+Description:
+    Based on "Data.Array.Repa.IO.Timing" module from @repa-io@ package.
+    .
+    Measures execution time in milliseconds and CPU tics
+    per array index (element).
 License:             MIT
 License-file:        LICENSE
 Author:              Roman Leventov
@@ -9,6 +14,11 @@ Bug-reports:         https://github.com/leventov/yarr/issues
 Category:            Benchmarking
 Build-type:          Simple
 Cabal-version:       >= 1.8
+
+source-repository head
+    type:     git
+    location: https://github.com/leventov/yarr.git
+    subdir:   yarr-benchmarking
 
 Library
     build-depends:

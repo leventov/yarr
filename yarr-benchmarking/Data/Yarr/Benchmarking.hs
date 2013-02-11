@@ -13,12 +13,13 @@ import Data.Yarr.Base
 import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
 
-
+-- | General IO action benchmarking modifier.
 time :: Shape sh
-     => String
-     -> sh
-     -> IO a
-     -> IO a
+     => String -- ^ Label to print in front of results.
+     -> sh     -- ^ Shape of processed array, to compute tics per index metric.
+     -> IO a   -- ^ Array loading action.
+     -> IO a   -- ^ Modified action, appitionaly traces to stderr
+               --  it's execution time metrics.
 {-# NOINLINE time #-}
 time label range action = do
     (res, (µss, tics)) <- timeIO action
@@ -35,15 +36,19 @@ time label range action = do
     trace (printf format label ms ticsPerIndex)
     return res
 
+-- | /Sequential/ splice-by-slice yarr loaing action modifier.
 timeSlices
     :: (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
         Dim v ~ Dim v2)
-    => String
-    -> sh
-    -> (UArray slr l sh e -> UArray tslr tl sh e -> IO a)
-    -> UArray r l sh (v e)
-    -> UArray tr tl sh (v2 e)
-    -> IO (VecList (Dim v) a)
+    => String                 -- ^ Label to print in front of results.
+    -> sh                     -- ^ Shape of processed array,
+                              --   to compute pics per index metric.
+    -> (UArray slr l sh e ->
+        UArray tslr tl sh e
+        -> IO a)              -- ^ Action to perform on each array slice
+    -> UArray r l sh (v e)    -- ^ Source array of vectors
+    -> UArray tr tl sh (v2 e) -- ^ Target array of vectors
+    -> IO (VecList (Dim v) a) -- ^ Results
 {-# INLINE timeSlices #-}
 timeSlices label range load arr tarr = do
     let {-# INLINE timeSlice #-}
@@ -51,12 +56,12 @@ timeSlices label range load arr tarr = do
             time (label ++ ": " ++ (show i)) range (load sl tsl)
     V.izipWithM timeSlice (slices arr) (slices tarr)
 
-
+-- | Repeats (IO ()) action several times and traces timing stats.
 bench :: Shape sh
-      => String
-      -> Int
-      -> sh
-      -> IO ()
+      => String -- ^ Label to print in front of results.
+      -> Int    -- ^ Number of repeats.
+      -> sh     -- ^ Shape of array to compute tics per index metric.
+      -> IO ()  -- ^ Array loading action.
       -> IO ()
 {-# NOINLINE bench #-}
 bench label repeats range action = do
