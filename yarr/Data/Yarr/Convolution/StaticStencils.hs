@@ -44,12 +44,12 @@ data Dim1Stencil size a b c =
 --'Dim1Stencil'
 --    'n5'
 --    ('VecList'
---       [\ acc a -> return (acc + a),
---        \ acc a -> (return $ (acc + (4 * a))),
---        \ acc a -> (return $ (acc + (6 * a))),
---        \ acc a -> (return $ (acc + (4 * a))),
---        \ acc a -> return (acc + a)])
---    (\ acc a reduce -> reduce acc a)
+--       [\\ acc a -> return (acc + a),
+--        \\ acc a -> (return $ (acc + (4 * a))),
+--        \\ acc a -> (return $ (acc + (6 * a))),
+--        \\ acc a -> (return $ (acc + (4 * a))),
+--        \\ acc a -> return (acc + a)])
+--    (\\ acc a reduce -> reduce acc a)
 --    0
 -- @
 dim1St :: QuasiQuoter
@@ -93,18 +93,18 @@ data Dim2Stencil sx sy a b c =
 --  'n3'
 --  ('VecList'
 --     ['VecList'
---        [\ acc a -> return (acc + a),
---         \ acc a -> (return $ (acc + (2 * a))),
---         \ acc a -> return (acc + a)],
+--        [\\ acc a -> return (acc + a),
+--         \\ acc a -> (return $ (acc + (2 * a))),
+--         \\ acc a -> return (acc + a)],
 --      'VecList'
---        [\ acc _ -> return acc,
---         \ acc _ -> return acc,
---         \ acc _ -> return acc],
+--        [\\ acc _ -> return acc,
+--         \\ acc _ -> return acc,
+--         \\ acc _ -> return acc],
 --      'VecList'
---        [\ acc a -> return (acc - a),
---         \ acc a -> (return $ (acc + (-2 * a))),
---         \ acc a -> return (acc - a)]])
---  (\ acc a reduce -> reducej acc a)
+--        [\\ acc a -> return (acc - a),
+--         \\ acc a -> (return $ (acc + (-2 * a))),
+--         \\ acc a -> return (acc - a)]])
+--  (\\ acc a reduce -> reducej acc a)
 --  0
 -- @
 dim2St :: QuasiQuoter

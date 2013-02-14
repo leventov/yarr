@@ -34,23 +34,24 @@ floatToWord8 f = fromIntegral (truncate f :: Int)
 main = do
     args <- getArgs
     case args of
-        [imageFile] -> run 50 100 imageFile
-        [threshLow, threshHigh, imageFile] ->
-            run (read threshLow) (read threshHigh) imageFile
+        [imageFile] -> run 1 50 100 imageFile
+        [repeats, threshLow, threshHigh, imageFile] ->
+            run (read repeats) (read threshLow) (read threshHigh) imageFile
         _ -> hPutStrLn stderr
-                ("canny [threshLow in [0,255], threshHigh in [0,255]], " ++
+                ("canny [bench repeats, threshLow in [0,255], threshHigh in [0,255]], " ++
                  "imageFile")
 
-run threshLow threshHigh imageFile = do
+run repeats threshLow threshHigh imageFile = do
     anyImage <- readImage imageFile
 
     image <-
         compute (loadS S.fill) $
             mapElems fromIntegral $ readRGBVectors anyImage
 
-    edges <-
-        time "Total" (extent image) $
-            compute (process threshLow threshHigh) image
+    edges <- new (extent image)
+    
+    bench "Total" repeats (extent image) $
+        process threshLow threshHigh image edges
 
     writeImage ("t-canny-edges-" ++ imageFile) (Grey edges)
 
