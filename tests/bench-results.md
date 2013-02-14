@@ -41,7 +41,7 @@ Sequential
 
 * **Repa**
 
-  ```399 ± 3 ms (10 repeats by hand)```
+  ```399 ± 3 ms (10 manual repeats)```
 
   Typical run:
 
@@ -106,7 +106,7 @@ Parallel (5 threads)
 
 * **Repa**
 
-  137 ± 3 ms (10 manual repeats)
+  ```137 ± 3 ms (10 manual repeats)```
 
   Fastest run:
 
