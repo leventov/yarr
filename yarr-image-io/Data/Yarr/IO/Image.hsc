@@ -55,7 +55,7 @@ readRGBVectors = readRGB construct
 --
 -- @
 -- anyImage <- 'readImage' \"lena.png\"
--- let image = readRGB (\r g b -> ...) anyImage
+-- let image = readRGB (\\r g b -> ...) anyImage
 -- @
 readRGB
     :: (Fun N3 Word8 a) -- ^ Passed red, green, blue component in @0-255@ range

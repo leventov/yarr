@@ -17,7 +17,7 @@ import Data.Yarr.Utils.FixedVector as V
 --  * slow /border get/, which checks every index from applied stencil
 --    to lay inside extent of underlying source array.
 --
---  * fast /center get/, which don't worries about bound checks
+--  * fast /center get/, which doesn't worry about bound checks
 --
 -- and 'center' 'Block'.
 data CV

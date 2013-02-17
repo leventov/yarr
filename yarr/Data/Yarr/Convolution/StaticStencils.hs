@@ -5,7 +5,7 @@ module Data.Yarr.Convolution.StaticStencils (
     dConvolveDim1WithStaticStencil, convolveDim1WithStaticStencil,
 
     -- ** Dim2 stencils
-    Dim2Stencil(..), dim2St,
+    Dim2Stencil(..), dim2St, dim2OutClamp,
     dConvolveShDim2WithStaticStencil, convolveShDim2WithStaticStencil,
     dConvolveLinearDim2WithStaticStencil, convolveLinearDim2WithStaticStencil
 ) where
@@ -289,7 +289,7 @@ dConvolveLinearDim2WithStaticStencil =
     convolveLinearDim2WithStaticStencil dim2OutClamp
 
 -- | Analog of 'convolveShDim2WithStaticStencil'
--- to conv
+-- to convolve arrays with 'L'inear load index.
 convolveLinearDim2WithStaticStencil
     :: forall r sx sox eox sy soy eoy a b c.
        (StencilOffsets sx sox eox, StencilOffsets sy soy eoy,

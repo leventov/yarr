@@ -391,7 +391,7 @@ instance BlockShape Dim2 where
 -- @blurred <- 'Data.Yarr.Eval.compute' ('Data.Yarr.Eval.loadP' (dim2BlockFill 'n1' 'n4' 'touch')) delayedBlurred@
 dim2BlockFill
     :: forall a bsx bsy. (Arity bsx, Arity bsy)
-    => bsx                  -- ^ Block size by x. Use 'n1'-'n8' values.
+    => bsx                  -- ^ Block size by x. Use 'n1' - 'n8' values.
     -> bsy                  -- ^ Block size by y
     -> (a -> IO ())         -- ^ 'touch' or 'noTouch'
     -> Fill Dim2 a          -- ^ Result curried function

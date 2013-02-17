@@ -10,7 +10,7 @@ LLVM version 3.1 (Ubuntu 3.1-2ubuntu1) Optimized build.
 
 GHC 7.6.1
 
-
+Yarr 0.9.1, Repa 3.2.3.1
 
 Canny
 =====

@@ -51,7 +51,7 @@ instance (Vector v e, Touchable e) => Touchable (v e) where
     touch = V.mapM_ touch
     {-# INLINE touch #-}
 
--- | Alias to @(\_ -> return ())@.
+-- | Alias to @(\\_ -> return ())@.
 noTouch :: a -> IO ()
 {-# INLINE noTouch #-}
 noTouch _ = return ()
@@ -77,6 +77,7 @@ class PrimitiveOrd a where
         -> a    -- ^ Max bound
         -> a    -- ^ Value to clamp
         -> IO a -- ^ Value in bounds
+
     -- | Definetely sequential clamp.
     clampM'
         :: a    -- ^ Min bound
