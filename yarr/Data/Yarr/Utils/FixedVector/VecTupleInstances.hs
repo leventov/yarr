@@ -1,11 +1,9 @@
 
-module Data.Yarr.Utils.VecTupleInstances where
+module Data.Yarr.Utils.FixedVector.VecTupleInstances where
 
 import Data.Vector.Fixed
-import Data.Yarr.Utils.VecTuple
-
-type N7 = S N6
-type N8 = S N7
+import Data.Yarr.Utils.FixedVector.Arity
+import Data.Yarr.Utils.FixedVector.VecTuple
 
 #define DERIV(n,clas) deriving instance clas e => clas (VecTuple (n) e)
 

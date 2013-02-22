@@ -40,12 +40,15 @@ main = do
 
     (blurred :: UArray F L Dim2 (VecList N3 Word8)) <- new (extent image)
 
-    benchSlices "sequential blur" 10 (extent image)
+    benchSlices "seq slice-wise blur" 10 (extent image)
                 (loadS S.fill) delayedBlurred blurred
 
-    bench "parallel blur" 10 (extent image) $
-        -- It isn't inlined with S.unrolledFill and S.dim2BlockFill
-        -- instead of S.fill, see comments in Data.Yarr.Convolution.Eval
-        loadSlicesP S.fill caps delayedBlurred blurred
+    let db' = dzip construct (slices delayedBlurred)
+    bench "seq blur" 10 (extent image) $ loadS S.fill db' blurred
+    
+    let {-# INLINE ffill #-}
+        ffill = S.unrolledFill n2 P.touch
+    bench "par blur" 10 (extent image) $
+        loadSlicesP ffill caps delayedBlurred blurred
 
     writeImage ("t-blurred-" ++ imageFile) (RGB blurred)

@@ -107,7 +107,8 @@ cvLoadS fill arr@(Convoluted _ _ _ bget center cget) tarr start end = do
 
 
 instance (BlockShape sh, Vector v e,
-          UVecTarget tr tslr tl sh v2 e, Dim v ~ Dim v2) =>
+          UVecTarget tr tslr tl sh v2 e, Dim v ~ Dim v2,
+          InlinableArity (Dim v)) =>
         VecLoad (SE CV) CV CVL tr tslr tl sh v v2 e where
     
     -- These functions aren't inlined propely with any first argument,
@@ -122,7 +123,8 @@ instance (BlockShape sh, Vector v e,
     {-# INLINE loadSlicesS #-}
 
 instance (BlockShape sh, Vector v e,
-          UVecTarget tr tslr tl sh v2 e, Dim v ~ Dim v2) =>
+          UVecTarget tr tslr tl sh v2 e, Dim v ~ Dim v2,
+          InlinableArity (Dim v)) =>
         RangeVecLoad (SE CV) CV CVL tr tslr tl sh v v2 e where
     rangeLoadSlicesP = cvLoadSlicesP
     rangeLoadSlicesS = cvLoadSlicesS
@@ -133,7 +135,7 @@ instance (BlockShape sh, Vector v e,
 cvLoadSlicesP
     :: forall sh v e tr tslr tl v2.
        (BlockShape sh, UVecTarget tr tslr tl sh v2 e,
-        Vector v e, Dim v ~ Dim v2)
+        Vector v e, Dim v ~ Dim v2, InlinableArity (Dim v))
     => Fill sh e
     -> Threads
     -> UArray (SE CV) CVL sh (v e)
@@ -141,7 +143,7 @@ cvLoadSlicesP
     -> sh -> sh
     -> IO ()
 {-# INLINE cvLoadSlicesP #-}
-cvLoadSlicesP fill threads arr tarr start end = do
+cvLoadSlicesP fill threads = \arr tarr start end -> do
     force arr
     force tarr
     !ts <- threads
@@ -157,7 +159,14 @@ cvLoadSlicesP fill threads arr tarr start end = do
         borderFills = V.zipWith S.fill borderGets writes
 
         centerGets = V.map centerGet sls
-        centerFills = V.zipWith fill centerGets writes
+        --{-# INLINE cf1 #-}
+        --cf1 = fill (centerGets V.! 0) (writes V.! 0)
+        --{-# INLINE cf2 #-}
+        --cf2 = fill (centerGets V.! 1) (writes V.! 1)
+        --{-# INLINE cf3 #-}
+        --cf3 = fill (centerGets V.! 2) (writes V.! 2)
+        centerFills = V.inlinableZipWith fill centerGets writes
+        --centerFills = vl_3 cf1 cf2 cf3
 
         {-# INLINE centerWork #-}
         centerWork = makeForkSlicesOnce ts loadCenters centerFills

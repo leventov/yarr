@@ -81,14 +81,18 @@ Library
         Data.Yarr.Utils.Fork
         Data.Yarr.Utils.Parallel
         Data.Yarr.Utils.Split
-        Data.Yarr.Utils.Storable
         Data.Yarr.Utils.Primitive
         Data.Yarr.Utils.LowLevelFlow
 
     other-modules:
+        Data.Yarr.Utils.Storable
+
         -- re-exported in Utils.FixedVector
-        Data.Yarr.Utils.VecTuple
-        Data.Yarr.Utils.VecTupleInstances
+        Data.Yarr.Utils.FixedVector.Arity
+        Data.Yarr.Utils.FixedVector.VecTuple
+        Data.Yarr.Utils.FixedVector.VecTupleInstances
+        Data.Yarr.Utils.FixedVector.InlinableArity
+        Data.Yarr.Utils.FixedVector.InlinableArityInstances
 
         -- re-exported in Data.Yarr.Convolution
         Data.Yarr.Convolution.Repr

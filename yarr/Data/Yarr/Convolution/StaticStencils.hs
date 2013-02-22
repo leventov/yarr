@@ -29,8 +29,8 @@ data Dim1Stencil size a b c =
     Dim1Stencil {
         dim1StencilSize   :: size,
         dim1StencilValues :: (VecList size b),
-        dim1StencilReduce :: (c -> a -> b -> IO c), -- ^ Generalized reduce function
-        dim1StencilZero   :: c                      -- ^ Reduce zero
+        dim1StencilReduce :: c -> a -> b -> IO c, -- ^ Generalized reduce function
+        dim1StencilZero   :: IO c                 -- ^ Reduce zero
     }
 
 -- | QuasiQuoter for producing typical numeric convolving 'Dim1' stencil,
@@ -50,7 +50,7 @@ data Dim1Stencil size a b c =
 --        \\ acc a -> (return $ (acc + (4 * a))),
 --        \\ acc a -> return (acc + a)])
 --    (\\ acc a reduce -> reduce acc a)
---    0
+--    (return 0)
 -- @
 dim1St :: QuasiQuoter
 dim1St = QuasiQuoter parseDim1Stencil undefined undefined undefined
@@ -62,7 +62,7 @@ parseDim1Stencil s =
         sizeType = P.foldr appT [t|Z|] (P.replicate size [t|S|])
         sz = [| undefined :: $sizeType |]
         vecList = [| VecList |] `appE` (listE (P.map justNonZero values))
-    in [| Dim1Stencil $sz $vecList (\acc a reduce -> reduce acc a) 0 |]
+    in [| Dim1Stencil $sz $vecList (\acc a reduce -> reduce acc a) (return 0) |]
 
 
 -- | Generalized static 'Dim2' stencil.
@@ -70,9 +70,9 @@ data Dim2Stencil sx sy a b c =
     Dim2Stencil {
         dim2StencilSizeX :: sx,
         dim2StencilSizeY :: sy,
-        dim2StencilValues :: (VecList sy (VecList sx b)), -- ^ Stencil values, packed in nested vectors
-        dim2StencilReduce :: (c -> a -> b -> IO c),       -- ^ Generalized reduce function
-        dim2StencilZero :: c                              -- ^ Reduce zero
+        dim2StencilValues :: VecList sy (VecList sx b), -- ^ Stencil values, packed in nested vectors
+        dim2StencilReduce :: c -> a -> b -> IO c,       -- ^ Generalized reduce function
+        dim2StencilZero :: IO c                         -- ^ Reduce zero
     }
 
 -- | Most useful 'Dim2' stencil producer.
@@ -105,7 +105,7 @@ data Dim2Stencil sx sy a b c =
 --         \\ acc a -> (return $ (acc + (-2 * a))),
 --         \\ acc a -> return (acc - a)]])
 --  (\\ acc a reduce -> reducej acc a)
---  0
+--  (return 0)
 -- @
 dim2St :: QuasiQuoter
 dim2St = QuasiQuoter parseDim2Stencil undefined undefined undefined
@@ -128,7 +128,7 @@ parseDim2Stencil s =
             P.map (\vs -> vl `appE` (listE (P.map justNonZero vs))) values
         outerList = vl `appE` (listE innerLists)
 
-    in [| Dim2Stencil $sx $sy $outerList (\acc a reduce -> reduce acc a) 0 |]
+    in [| Dim2Stencil $sx $sy $outerList (\acc a reduce -> reduce acc a) (return 0) |]
 
 
 justNonZero :: Integer -> Q Exp
@@ -167,14 +167,16 @@ convolveDim1WithStaticStencil
     -> UArray CV CVL Dim1 c  -- ^ Fused convolved result array
 {-# INLINE convolveDim1WithStaticStencil #-}
 convolveDim1WithStaticStencil
-        borderIndex (Dim1Stencil _ stencil reduce z) arr =
+        borderIndex (Dim1Stencil _ stencil reduce mz) arr =
 
     let !startOff = arity (undefined :: so)
         !endOff = arity (undefined :: eo)
 
         {-# INLINE sget #-}
         sget get =
-            \ix -> V.iifoldM
+            \ix -> do
+                z <- mz
+                V.iifoldM
                     (-startOff)
                     succ
                     (\acc i b -> do
@@ -242,7 +244,7 @@ convolveShDim2WithStaticStencil
     -> UArray CV CVL Dim2 c    -- ^ Fused convolved result array
 {-# INLINE convolveShDim2WithStaticStencil #-}
 convolveShDim2WithStaticStencil
-        borderIndex (Dim2Stencil _ _ stencil reduce z) arr =
+        borderIndex (Dim2Stencil _ _ stencil reduce mz) arr =
 
     let !startOffX = arity (undefined :: sox)
         !endOffX = arity (undefined :: eox)
@@ -252,7 +254,8 @@ convolveShDim2WithStaticStencil
 
         {-# INLINE sget #-}
         sget get =
-            \ (y, x) ->
+            \ (y, x) -> do
+                z <- mz
                 V.iifoldM
                     (-startOffY)
                     succ
@@ -303,7 +306,7 @@ convolveLinearDim2WithStaticStencil
     -> UArray CV CVL Dim2 c    -- ^ Fused convolved result array
 {-# INLINE convolveLinearDim2WithStaticStencil #-}
 convolveLinearDim2WithStaticStencil
-        borderIndex (Dim2Stencil _ _ stencil reduce z) arr =
+        borderIndex (Dim2Stencil _ _ stencil reduce mz) arr =
 
     let !startOffX = arity (undefined :: sox)
         !endOffX = arity (undefined :: eox)
@@ -313,7 +316,8 @@ convolveLinearDim2WithStaticStencil
 
         {-# INLINE sget #-}
         sget get =
-            \ (y, x) ->
+            \ (y, x) -> do
+                z <- mz
                 V.iifoldM
                     (-startOffY)
                     succ
@@ -332,7 +336,8 @@ convolveLinearDim2WithStaticStencil
         !sh@(shY, shX) = extent arr
 
         {-# INLINE slget #-}
-        slget !(!y, !x) =
+        slget !(!y, !x) = do
+            z <- mz
             V.iifoldM
                 (-startOffY)
                 succ

@@ -5,7 +5,7 @@ module Data.Yarr.Utils.FixedVector (
     Fn, arity,
     
     -- * Missed utility
-    zipWith3, zipWithM_, apply, all, any,
+    zipWith3, zipWithM_, apply, all, any, zipWithIN,
     iifoldl, iifoldM,
 
     -- * Aliases and shortcuts
@@ -19,8 +19,11 @@ module Data.Yarr.Utils.FixedVector (
 
     -- * VecTuple
     VecTuple(..),
-    module Data.Yarr.Utils.VecTupleInstances,
+    module Data.Yarr.Utils.FixedVector.VecTupleInstances,
     makeVecTupleInstance,
+
+    -- * InlinableArity
+    InlinableArity(..), makeInlinableArityInstance,
 
 ) where
 
@@ -31,34 +34,14 @@ import Control.DeepSeq
 import Data.Vector.Fixed
 import Data.Vector.Fixed.Internal hiding (apply)
 
-import Data.Yarr.Utils.VecTuple
-import Data.Yarr.Utils.VecTupleInstances
+import Data.Yarr.Utils.FixedVector.Arity
 
-n1 :: N1
-n1 = undefined
+import Data.Yarr.Utils.FixedVector.VecTuple
+import Data.Yarr.Utils.FixedVector.VecTupleInstances
 
-n2 :: N2
-n2 = undefined
+import Data.Yarr.Utils.FixedVector.InlinableArity
+import Data.Yarr.Utils.FixedVector.InlinableArityInstances
 
-n3 :: N3
-n3 = undefined
-
-n4 :: N4
-n4 = undefined
-
-n5 :: N5
-n5 = undefined
-
-n6 :: N6
-n6 = undefined
-
-
-n7 :: N7
-n7 = undefined
-
-
-n8 :: N8
-n8 = undefined
 
 vl_1 :: a -> VecList N1 a
 {-# INLINE vl_1 #-}
@@ -140,3 +123,28 @@ gifoldlF st sc f b = Fun $
     accum (\(T_ifoldl i r) a -> T_ifoldl (sc i) (f r i a))
           (\(T_ifoldl _ r) -> r)
           (T_ifoldl st b :: T_ifoldl ix b n)
+
+
+
+-- | Zip two vector together.
+zipWithIN :: (Vector v a, Vector v b, Vector v c)
+        => (a -> b -> c) -> v a -> v b -> v c
+{-# INLINE zipWithIN #-}
+zipWithIN f v u = create $ Cont
+              $ inspectV u
+              . inspectV v
+              . zipWithF f
+
+data T_zip a c r n = T_zip (VecList n a) (Fn n c r)
+
+zipWithF :: forall n a b c d. Arity n
+         => (a -> b -> c) -> Fun n c d -> Fun n a (Fun n b d)
+zipWithF f (Fun g0) =
+  fmap (\v -> Fun $ accum
+              (\(T_zip (VecList (a:as)) g) b ->
+                let {-# INLINE fab #-}
+                    fab = f a b
+                in T_zip (VecList as) (g fab))
+              (\(T_zip _ x) -> x)
+              (T_zip v g0 :: T_zip a c d n)
+       ) construct

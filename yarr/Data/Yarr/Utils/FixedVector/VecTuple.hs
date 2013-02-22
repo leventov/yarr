@@ -1,5 +1,5 @@
 
-module Data.Yarr.Utils.VecTuple (
+module Data.Yarr.Utils.FixedVector.VecTuple (
     VecTuple(..), makeVecTupleInstance
 ) where
 
@@ -49,7 +49,7 @@ makeVecTupleInstance arityType a = do
         eas = fmap varE as
 
         constructF = funD'
-            (mkName "construct")
+            'construct
             [clause
                 []
                 (normalB $ appE (conE 'Fun) $ parensE $
@@ -59,7 +59,7 @@ makeVecTupleInstance arityType a = do
         instP = conP vtConName [tupP pas]
         fn = mkName "f"
         inspectF = funD'
-            (mkName "inspect")
+            'inspect
             [clause
                 [instP, conP 'Fun [varP fn]]
                 (normalB $ foldl appE (varE fn) eas)
