@@ -1,6 +1,8 @@
 
 module Data.Yarr.Convolution.Repr (
-    CV, CVL, UArray(..), justCenter,
+    CV, CVL,
+    UArray(..),
+    justCenter,
 ) where
 
 import Prelude as P
@@ -30,12 +32,16 @@ data CV
 -- It is even able to distribute quite expensive border loads evenly between
 -- available threads while parallel load.
 --
--- /TODO:/ element-wise Loading convoluted arrays isn't inlined propely
+-- Element-wise Loading convoluted arrays wasn't inlined propely
 -- with unrolled 'Fill'ing ('unrolledFill', 'dim2BlockFill').
--- However, with simple 'fill' performance is OK.
+-- However, with simple 'fill' performance was OK.
 --
 -- For details see
 -- <http://stackoverflow.com/questions/14748900/ghc-doesnt-perform-2-stage-partial-application-inlining>
+--
+-- /ALMOST SOLVED:/ you just need to support unrolled filling function with @INLINE@ pragma,
+-- see <https://github.com/leventov/yarr/blob/master/tests/blur.hs>,
+-- @ffill@ function.
 data CVL
 
 instance Shape sh => Regular CV CVL sh a where

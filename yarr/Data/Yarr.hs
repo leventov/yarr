@@ -47,14 +47,15 @@
           Useful for advanced hand-controlled flow operations.
 
         * /Meta/ representations: 'SE'parate
-          and 'Data.Yarr.Repr.Checked.CHK' (CHecKed).
+          and 'Debug.Yarr.CHK' (CHecKed).
           Thery are parameterized with another representation index.
           Arrays of meta types play almost like their prototypes.
           'SE' glues several arrays
           into one array of vectors (array types with 'SE' index are
           always instances of 'VecRegular' class).
-          'CHK' is useful for debugging, it raises error on illegal indexing
-          attempt. By default indexing is unchecked.
+          'Debug.Yarr.CHK' is useful for debugging,
+          it raises error on illegal indexing attempt.
+          By default indexing is unchecked.
 
     
     /Representation choice:/

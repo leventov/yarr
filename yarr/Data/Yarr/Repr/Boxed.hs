@@ -1,5 +1,14 @@
 
-module Data.Yarr.Repr.Boxed where
+module Data.Yarr.Repr.Boxed (
+    B, MB,
+    -- | There are also @Boxed@  and @MutableBoxed@
+    -- 'UArray' family constructors,
+    -- which aren't presented in the docs because Haddock
+    -- doesn't support associated family constructors.
+    --
+    -- See source of "Data.Yarr.Repr.Boxed" module.
+    UArray(..)
+) where
 
 import Control.Monad.ST (RealWorld)
 import Data.Primitive.Array
@@ -8,6 +17,7 @@ import Data.Yarr.Base hiding (fmap)
 import Data.Yarr.Shape
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
+import Debug.Yarr
 
 -- | 'B'oxed representation is a wrapper for 'Data.Primitive.Array.Array'
 -- from @primitive@ package. It may be used to operate with arrays
@@ -75,4 +85,4 @@ instance (Shape sh, NFData a) => Manifest B MB L sh a where
     freeze (MutableBoxed sh marr) = fmap (Boxed sh) (unsafeFreezeArray marr)
     thaw (Boxed sh arr) = fmap (MutableBoxed sh) (unsafeThawArray arr)
 
-uninitialized = error "Yarr! Uninitialized element in the boxed array"
+uninitialized = yerr "Uninitialized element in the boxed array"

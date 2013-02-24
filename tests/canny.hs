@@ -17,7 +17,6 @@ import Data.Yarr as Y
 import Data.Yarr.Shape as S
 import Data.Yarr.Repr.Foreign
 import Data.Yarr.Repr.Delayed
-import Data.Yarr.Repr.Checked
 import Data.Yarr.Convolution as C
 import Data.Yarr.IO.Image
 import Data.Yarr.Benchmarking

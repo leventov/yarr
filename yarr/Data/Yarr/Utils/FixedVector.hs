@@ -5,7 +5,7 @@ module Data.Yarr.Utils.FixedVector (
     Fn, arity,
     
     -- * Missed utility
-    zipWith3, zipWithM_, apply, all, any, zipWithIN,
+    zipWith3, zipWithM_, apply, all, any,
     iifoldl, iifoldM,
 
     -- * Aliases and shortcuts
@@ -123,28 +123,3 @@ gifoldlF st sc f b = Fun $
     accum (\(T_ifoldl i r) a -> T_ifoldl (sc i) (f r i a))
           (\(T_ifoldl _ r) -> r)
           (T_ifoldl st b :: T_ifoldl ix b n)
-
-
-
--- | Zip two vector together.
-zipWithIN :: (Vector v a, Vector v b, Vector v c)
-        => (a -> b -> c) -> v a -> v b -> v c
-{-# INLINE zipWithIN #-}
-zipWithIN f v u = create $ Cont
-              $ inspectV u
-              . inspectV v
-              . zipWithF f
-
-data T_zip a c r n = T_zip (VecList n a) (Fn n c r)
-
-zipWithF :: forall n a b c d. Arity n
-         => (a -> b -> c) -> Fun n c d -> Fun n a (Fun n b d)
-zipWithF f (Fun g0) =
-  fmap (\v -> Fun $ accum
-              (\(T_zip (VecList (a:as)) g) b ->
-                let {-# INLINE fab #-}
-                    fab = f a b
-                in T_zip (VecList as) (g fab))
-              (\(T_zip _ x) -> x)
-              (T_zip v g0 :: T_zip a c d n)
-       ) construct

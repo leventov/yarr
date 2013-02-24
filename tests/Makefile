@@ -7,7 +7,7 @@ REPA_FLAGS = $(GHC_FLAGS) -funfolding-use-threshold1000
 
 DDUMP_CORE = -ddump-simpl -dsuppress-all
 
-GCC_FLAGS = -O2
+OPENCV_FLAGS = -O2 `pkg-config --cflags --libs opencv`
 
 ct: color-trans.hs
 	ghc --make $(YARR_FLAGS) $(DDUMP_CORE) -o ct color-trans.hs > ct-core.hs
@@ -21,8 +21,14 @@ canny: canny.hs
 ub: blur-unroll-bench.hs
 	ghc --make $(YARR_FLAGS) $(DDUMP_CORE) -o ub blur-unroll-bench.hs > ub-core.hs
 
-rc: repa-canny.hs
+repa-canny: repa-canny.hs
 	ghc --make $(REPA_FLAGS) -o repa-canny repa-canny.hs
+
+cv-canny: canny-opencv.cpp
+	g++ -o cv-canny canny-opencv.cpp $(OPENCV_FLAGS)
+
+le: lum-equalization.hs
+	ghc --make $(YARR_FLAGS) $(DDUMP_CORE) -o le lum-equalization.hs > le-core.hs
 
 %.as: %
 	objdump -d $< > $@
@@ -34,5 +40,5 @@ rc: repa-canny.hs
 	gcc -c $(GCC_FLAGS) $<
 
 clean:
-	rm *.o *.hi t-* ct blur canny ub repa-canny
+	rm *.o *.hi t-* ct blur canny ub repa-canny le
     

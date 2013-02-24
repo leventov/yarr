@@ -17,11 +17,27 @@ import Data.Yarr.Utils.Split
 -- Passed as 1st parameter of all 'Data.Yarr.Eval.Load'ing functions
 -- from "Data.Yarr.Eval" module.
 type Fill sh a =
-    (sh -> IO a)          -- ^ Get
+       (sh -> IO a)       -- ^ Get
     -> (sh -> a -> IO ()) -- ^ Write
     -> sh                 -- ^ Start
     -> sh                 -- ^ End
     -> IO ()
+
+type Foldl sh a b =
+       (b -> sh -> a -> IO b) -- ^ Generalized left reduce
+    -> IO b                   -- ^ Zero
+    -> (sh -> IO a)           -- ^ Get
+    -> sh                     -- ^ Start
+    -> sh                     -- ^ End
+    -> IO b                   -- ^ Result
+
+type Foldr sh a b =
+       (sh -> a -> b -> IO b) -- ^ Generalized right reduce
+    -> IO b                   -- ^ Zero
+    -> (sh -> IO a)           -- ^ Get
+    -> sh                     -- ^ Start
+    -> sh                     -- ^ End
+    -> IO b                   -- ^ Result
 
 -- | Mainly for internal use.
 -- Abstracts top-left -- bottom-right pair of indices.
@@ -80,47 +96,27 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
     blockSize :: Block sh -> Int
     insideBlock :: Block sh -> sh -> Bool
 
-    makeChunkRange :: Int -> sh -> sh -> (Int -> Block sh)
-
     -- | Following 6 functions shouldn't be called directly,
     -- they are intented to be passed as first argument
-    -- to 'Data.Yarr.Eval.Load' and not currently existring
-    -- @Fold@ functions.
-    foldl :: (b -> sh -> a -> IO b) -- ^ Generalized reduce
-          -> b                      -- ^ Zero
-          -> (sh -> IO a)           -- ^ Get
-          -> sh                     -- ^ Start
-          -> sh                     -- ^ End
-          -> IO b                   -- ^ Result
+    -- to 'Data.Yarr.Eval.Load' and functions from
+    -- "Data.Yarr.Fold" module.
+    makeChunkRange :: Int -> sh -> sh -> (Int -> Block sh)
+
+    foldl :: Foldl sh a b
 
     unrolledFoldl
         :: forall a b uf. Arity uf
         => uf                     -- ^ Unroll factor
         -> (a -> IO ())           -- ^ 'touch' or 'noTouch'
-        -> (b -> sh -> a -> IO b) -- ^ Generalized reduce
-        -> b                      -- ^ Zero
-        -> (sh -> IO a)           -- ^ Get
-        -> sh                     -- ^ Start
-        -> sh                     -- ^ End
-        -> IO b                   -- ^ Result
+        -> Foldl sh a b
 
-    foldr :: (sh -> a -> b -> IO b) -- ^ Generalized reduce
-          -> b                      -- ^ Zero
-          -> (sh -> IO a)           -- ^ Get
-          -> sh                     -- ^ Start
-          -> sh                     -- ^ End
-          -> IO b                   -- ^ Result
+    foldr :: Foldr sh a b
 
     unrolledFoldr
         :: forall a b uf. Arity uf
         => uf                     -- ^ Unroll factor
         -> (a -> IO ())           -- ^ 'touch' or 'noTouch'
-        -> (sh -> a -> b -> IO b) -- ^ Generalized reduce
-        -> b                      -- ^ Zero
-        -> (sh -> IO a)           -- ^ Get
-        -> sh                     -- ^ Start
-        -> sh                     -- ^ End
-        -> IO b                   -- ^ Result
+        -> Foldr sh a b
 
     -- | Standard fill without unrolling.
     -- To avoid premature optimization just type @fill@
@@ -175,19 +171,19 @@ instance Shape Dim1 where
         \get write ->
         \ (I# start#) (I# end#) -> unrolledFill# uf tch get write start# end#
 
-    foldl reduce z get =
-        \ (I# start#) (I# end#) -> foldl# reduce z get start# end#
+    foldl reduce mz get =
+        \ (I# start#) (I# end#) -> foldl# reduce mz get start# end#
 
-    unrolledFoldl unrollFactor tch reduce z get =
+    unrolledFoldl unrollFactor tch reduce mz get =
         \ (I# start#) (I# end#) ->
-            unrolledFoldl# unrollFactor tch reduce z get start# end#
+            unrolledFoldl# unrollFactor tch reduce mz get start# end#
 
-    foldr reduce z get =
-        \ (I# start#) (I# end#) -> foldr# reduce z get start# end#
+    foldr reduce mz get =
+        \ (I# start#) (I# end#) -> foldr# reduce mz get start# end#
 
-    unrolledFoldr unrollFactor tch reduce z get =
+    unrolledFoldr unrollFactor tch reduce mz get =
         \ (I# start#) (I# end#) ->
-            unrolledFoldr# unrollFactor tch reduce z get start# end# 
+            unrolledFoldr# unrollFactor tch reduce mz get start# end# 
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
@@ -296,19 +292,20 @@ instance Shape Dim2 where
                             goY# (y# +# 1#)
                 in goY# sy#
 
-    foldl reduce z get =
+    foldl reduce mz get =
         \ (!sy, !sx) (!ey, !ex) ->
             let {-# INLINE go #-}
                 go y b
                     | y >= ey   = return b
                     | otherwise = do
-                        b' <- foldl (\b x a -> reduce b (y, x) a) b
+                        b' <- foldl (\b x a -> reduce b (y, x) a)
+                                    (return b)
                                     (\x -> get (y, x))
                                     sx ex
                         go (y + 1) b'
-            in go sy z
+            in mz >>= go sy
 
-    unrolledFoldl unrollFactor tch reduce z get =
+    unrolledFoldl unrollFactor tch reduce mz get =
         \ (!sy, !sx) (!ey, !ex) ->
             let {-# INLINE go #-}
                 go y b
@@ -316,26 +313,28 @@ instance Shape Dim2 where
                     | otherwise = do
                         b' <- unrolledFoldl
                                 unrollFactor tch
-                                (\b x a -> reduce b (y, x) a) b
+                                (\b x a -> reduce b (y, x) a)
+                                (return b)
                                 (\x -> get (y, x))
                                 sx ex
                         go (y + 1) b'
-            in go sy z
+            in mz >>= go sy
 
 
-    foldr reduce z get =
+    foldr reduce mz get =
         \ (!sy, !sx) (!ey, !ex) ->
             let {-# INLINE go #-}
                 go y b
                     | y < sy    = return b
                     | otherwise = do
-                        b' <- foldr (\x a b -> reduce (y, x) a b) b
+                        b' <- foldr (\x a b -> reduce (y, x) a b)
+                                    (return b)
                                     (\x -> get (y, x))
                                     sx ex
                         go (y - 1) b'
-            in go (ey - 1) z
+            in mz >>= go (ey - 1)
 
-    unrolledFoldr unrollFactor tch reduce z get =
+    unrolledFoldr unrollFactor tch reduce mz get =
         \ (!sy, !sx) (!ey, !ex) ->
             let {-# INLINE go #-}
                 go y b
@@ -344,11 +343,11 @@ instance Shape Dim2 where
                         b' <- unrolledFoldr
                                 unrollFactor tch
                                 (\x a b -> reduce (y, x) a b)
-                                b
+                                (return b)
                                 (\x -> get (y, x))
                                 sx ex
                         go (y - 1) b'
-            in go (ey - 1) z
+            in mz >>= go (ey - 1)
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
@@ -506,20 +505,21 @@ instance Shape Dim3 where
                     in go sz
         in actualFill uf
 
-    foldl reduce zero get =
+    foldl reduce mz get =
         \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
             let {-# INLINE go #-}
                 go z b
                     | z >= ez   = return b
                     | otherwise = do
                         b' <- foldl
-                                (\b (y, x) a -> reduce b (z, y, x) a) b
+                                (\b (y, x) a -> reduce b (z, y, x) a)
+                                (return b)
                                 (\(y, x) -> get (z, y, x))
                                 (sy, sx) (ey, ex)
                         go (z + 1) b'
-            in go sz zero
+            in mz >>= go sz
 
-    unrolledFoldl unrollFactor tch reduce zero get =
+    unrolledFoldl unrollFactor tch reduce mz get =
         \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
             let {-# INLINE go #-}
                 go z b
@@ -527,27 +527,29 @@ instance Shape Dim3 where
                     | otherwise = do
                         b' <- unrolledFoldl
                                 unrollFactor tch
-                                (\b (y, x) a -> reduce b (z, y, x) a) b
+                                (\b (y, x) a -> reduce b (z, y, x) a)
+                                (return b)
                                 (\(y, x) -> get (z, y, x))
                                 (sy, sx) (ey, ex)
                         go (z + 1) b'
-            in go sz zero
+            in mz >>= go sz
 
 
-    foldr reduce zero get =
+    foldr reduce mz get =
         \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
             let {-# INLINE go #-}
                 go z b
                     | z < sz    = return b
                     | otherwise = do
                         b' <- foldr
-                                (\(y, x) a b -> reduce (z, y, x) a b) b
+                                (\(y, x) a b -> reduce (z, y, x) a b)
+                                (return b)
                                 (\(y, x) -> get (z, y, x))
                                 (sy, sx) (ey, ex)
                         go (z - 1) b'
-            in go (ez - 1) zero
+            in mz >>= go (ez - 1)
 
-    unrolledFoldr unrollFactor tch reduce zero get =
+    unrolledFoldr unrollFactor tch reduce mz get =
         \ (!sz, !sy, !sx) (!ez, !ey, !ex) ->
             let {-# INLINE go #-}
                 go z b
@@ -555,11 +557,12 @@ instance Shape Dim3 where
                     | otherwise = do
                         b' <- unrolledFoldr
                                 unrollFactor tch
-                                (\(y, x) a b -> reduce (z, y, x) a b) b
+                                (\(y, x) a b -> reduce (z, y, x) a b)
+                                (return b)
                                 (\(y, x) -> get (z, y, x))
                                 (sy, sx) (ey, ex)
                         go (z - 1) b'
-            in go (ez - 1) zero
+            in mz >>= go (ez - 1)
 
     {-# INLINE zero #-}
     {-# INLINE size #-}

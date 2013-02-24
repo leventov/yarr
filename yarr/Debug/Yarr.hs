@@ -1,12 +1,32 @@
 
-module Data.Yarr.Repr.Checked where
+module Debug.Yarr (
+    -- * @Checked@ meta repr
+    CHK,
+    -- | There is also @Checked@ 'UArray' family constructor,
+    -- which isn't presented in the docs because Haddock
+    -- doesn't support associated family constructors.
+    --
+    -- See source of "Yarr.Debug" module.
+    UArray(..),
 
+    -- * Fun
+    yarr, yerr
+) where
+
+import System.IO
 import Text.Printf
 
 import Data.Yarr.Base hiding (fmap)
 import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
 
+-- | Yarr something to stderr.
+yarr :: String -> IO ()
+yarr smth = hPutStrLn stderr ("Yarr! " ++ smth)
+
+-- | Yarr something as 'error' message.
+yerr :: String -> a
+yerr msg = error ("Yarr! " ++ msg)
 
 data CHK r
 
@@ -33,15 +53,14 @@ instance USource r l sh a => USource (CHK r) l sh a where
     index (Checked arr) sh =
         let ext = extent arr
         in if not (insideBlock (zero, ext) sh)
-            then error $ printf
-                            "Yarr! Index %s is out of extent - %s"
-                            (show sh) (show ext)
+            then yerr $ printf "Index %s is out of extent - %s"
+                               (show sh) (show ext)
             else index arr sh
 
     linearIndex (Checked arr) i =
         let sz = size (extent arr)
         in if not (insideBlock (0, sz) i)
-            then error $ printf "Yarr! Linear index %d is out of size - %d" i sz
+            then yerr $ printf "Linear index %d is out of size - %d" i sz
             else linearIndex arr i
 
     {-# INLINE index #-}
@@ -55,15 +74,15 @@ instance UTarget tr tl sh a => UTarget (CHK tr) tl sh a where
     write (Checked arr) sh =
         let ext = extent arr
         in if not (insideBlock (zero, ext) sh)
-            then error $ printf
-                            "Yarr! Writing: index %s is out of extent - %s"
-                            (show sh) (show ext)
+            then yerr $ printf "Writing: index %s is out of extent - %s"
+                               (show sh) (show ext)
             else write arr sh
 
     linearWrite (Checked arr) i =
         let sz = size (extent arr)
         in if not (insideBlock (0, sz) i)
-            then error $ printf "Yarr! Writing: linear index %d is out of size - %d" i sz
+            then yerr $ printf "Writing: linear index %d is out of size - %d"
+                               i sz
             else linearWrite arr i
     {-# INLINE write #-}
     {-# INLINE linearWrite #-}

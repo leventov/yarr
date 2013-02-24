@@ -1,9 +1,17 @@
 
 module Data.Yarr.Repr.Foreign (
-    F, Storable, L,
+    F, FS,
+    -- | There are also @ForeignArray@  and @ForeignSlice@
+    -- 'UArray' family constructors,
+    -- which aren't presented in the docs because Haddock
+    -- doesn't support associated family constructors.
+    --
+    -- See source of "Data.Yarr.Repr.Foreign" module.
+    UArray(..),
+    
+    Storable, L,
     newEmpty,
     toForeignPtr, unsafeFromForeignPtr,
-    FS,
 ) where
 
 import Foreign

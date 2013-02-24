@@ -1,7 +1,15 @@
 
 module Data.Yarr.Repr.Separate (
-    -- * Separate representation
-    SE, fromSlices, unsafeMapSlices,
+    -- * @Separate@ representation
+    SE,
+    -- | There is also @Separate@ 'UArray' family constructor,
+    -- which isn't presented in the docs because Haddock
+    -- doesn't support associated family constructors.
+    --
+    -- See source of "Data.Yarr.Repr.Separate" module.
+    UArray(..),
+    
+    fromSlices, unsafeMapSlices,
     Data.Yarr.Repr.Separate.convert,
 
     -- * Element-wise fusion for arrays of vectors

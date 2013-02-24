@@ -1,4 +1,3 @@
-{-# LANGUAGE TemplateHaskell, TypeSynonymInstances, FlexibleInstances #-}
 
 module Data.Yarr.Utils.FixedVector.InlinableArityInstances where
 

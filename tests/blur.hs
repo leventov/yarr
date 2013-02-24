@@ -17,7 +17,7 @@ blur :: UArray F L Dim2 Int -> UArray CV CVL Dim2 Float
 {-# INLINE blur #-}
 blur arr =
     let convolved =
-            convolveLinearDim2WithStaticStencil (\_ _ _ -> return 0)
+            dConvolveLinearDim2WithStaticStencil
                 [dim2St| 2   4   5   4   2
                          4   9  12   9   4
                          5  12  15  12   5

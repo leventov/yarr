@@ -1,11 +1,11 @@
 
 module Data.Yarr.IO.Image (
     -- * The Image array type 
-      Image (..)
+    Image (..), Word8,
 
     -- * Image IO 
-    , readImage, writeImage, readRGB, readRGBVectors
-    ) where
+    readImage, writeImage, readRGB, readRGBVectors,
+) where
 
 import Control.Applicative (Applicative, (<$>))
 import Control.Monad (when)
@@ -42,6 +42,15 @@ data Image = RGBA (UArray F L Dim2 (VecList N4 Word8))
            | BGRA (UArray F L Dim2 (VecList N4 Word8))
            | BGR (UArray F L Dim2 (VecList N3 Word8))
            | Grey (UArray F L Dim2 Word8)
+
+instance Show Image where
+    show i = case i of
+        (RGBA arr) -> s "RGBA" arr
+        (RGB arr) -> s "RGB" arr
+        (BGRA arr) -> s "BGRA" arr
+        (BGR arr) -> s "BGR" arr
+        (Grey arr) -> s "Grey" arr
+        where s t arr = t ++ " " ++ (show (extent arr))
 
 -- | @readRGBVectors = 'readRGB' 'construct'@
 readRGBVectors

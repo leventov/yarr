@@ -1,4 +1,4 @@
-{-# LANGUAGE TemplateHaskell, TypeFamilies #-}
+
 module Data.Yarr.Utils.FixedVector.InlinableArity where
 
 import Language.Haskell.TH hiding (Arity)
@@ -6,6 +6,8 @@ import Language.Haskell.TH hiding (Arity)
 import Data.Vector.Fixed (Dim(..), Arity(..), Fun(..), Vector(..), (!), VecList(..), convert)
 import Data.Vector.Fixed.Internal (arity)
 
+-- | Workaround for slice-wise currined filling functions inlining issues.
+-- See comment to 'Data.Yarr.Convolution.CVL' for details.
 class Arity ar => InlinableArity ar where
     inlinableZipWith
         :: (Vector v a, Vector v b, Vector v c, Dim v ~ ar)

@@ -18,7 +18,7 @@ time :: Shape sh
      => String -- ^ Label to print in front of results.
      -> sh     -- ^ Shape of processed array, to compute tics per index metric.
      -> IO a   -- ^ Array loading action.
-     -> IO a   -- ^ Modified action, appitionaly traces to stderr
+     -> IO a   -- ^ Modified action, additionaly traces to stderr
                --  it's execution time metrics.
 {-# NOINLINE time #-}
 time label range action = do

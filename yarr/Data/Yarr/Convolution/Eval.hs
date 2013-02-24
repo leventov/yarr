@@ -153,20 +153,15 @@ cvLoadSlicesP fill threads = \arr tarr start end -> do
 
         centers = V.map center sls
 
-        loadCenters = V.map (\c -> intersectBlocks (vl_2 c loadRange)) centers
-        writes = V.map write (slices tarr)
-        borderGets = V.map borderGet sls
-        borderFills = V.zipWith S.fill borderGets writes
+        loadCenters =
+            V.inlinableMap (\c -> intersectBlocks (vl_2 c loadRange)) centers
+        writes = V.inlinableMap write (slices tarr)
+        borderGets = V.inlinableMap borderGet sls
+        borderFills = V.inlinableZipWith S.fill borderGets writes
 
-        centerGets = V.map centerGet sls
-        --{-# INLINE cf1 #-}
-        --cf1 = fill (centerGets V.! 0) (writes V.! 0)
-        --{-# INLINE cf2 #-}
-        --cf2 = fill (centerGets V.! 1) (writes V.! 1)
-        --{-# INLINE cf3 #-}
-        --cf3 = fill (centerGets V.! 2) (writes V.! 2)
+        centerGets = V.inlinableMap centerGet sls
+
         centerFills = V.inlinableZipWith fill centerGets writes
-        --centerFills = vl_3 cf1 cf2 cf3
 
         {-# INLINE centerWork #-}
         centerWork = makeForkSlicesOnce ts loadCenters centerFills
@@ -221,7 +216,7 @@ cvLoadSlicesP fill threads = \arr tarr start end -> do
 
 cvLoadSlicesS
     :: (BlockShape sh, UVecTarget tr tslr tl sh v2 e,
-        Vector v e, Dim v ~ Dim v2)
+        Vector v e, Dim v ~ Dim v2, InlinableArity (Dim v))
     => Fill sh e
     -> UArray (SE CV) CVL sh (v e)
     -> UArray tr tl sh (v2 e)
@@ -233,12 +228,12 @@ cvLoadSlicesS fill arr tarr start end = do
     force tarr
     
     let sls = slices arr
-        borderGets = V.map borderGet sls
+        borderGets = V.inlinableMap borderGet sls
         centers = V.map center sls
 
-        centerGets = V.map centerGet sls
-        writes = V.map write (slices tarr)
-        centerFills = V.zipWith fill centerGets writes
+        centerGets = V.inlinableMap centerGet sls
+        writes = V.inlinableMap write (slices tarr)
+        centerFills = V.inlinableZipWith fill centerGets writes
 
         loadRange = (start, end)
         loadCenters = V.map (\c -> intersectBlocks (vl_2 c loadRange)) centers
@@ -248,15 +243,10 @@ cvLoadSlicesS fill arr tarr start end = do
         centerFills loadCenters
 
     let borders = V.map (clipBlock loadRange) loadCenters
-        borderFills = V.zipWith S.fill borderGets writes
+        borderFills = V.inlinableZipWith S.fill borderGets writes
     V.zipWithM_
         (\bfill borders -> V.mapM_ (\(bs, be) -> bfill bs be) borders)
         borderFills borders
 
     touchArray arr
     touchArray tarr
-
-    -- This version is not inlined propely for an unknown reason
-
-    --V.zipWithM_ (\sl tsl -> rangeLoadS fill sl tsl start end)
-    --            (slices arr) (slices tarr)

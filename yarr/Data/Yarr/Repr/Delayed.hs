@@ -2,13 +2,18 @@
 module Data.Yarr.Repr.Delayed (
     -- * Delayed source
     D,
-    Regular,
-    UArray(LinearDelayed, ShapeDelayed, ShapeDelayedTarget),
-    L, SH, delay, delayShaped,
     -- * Delayed target
     DT,
+    -- | There are also @LinearDelayed@, @ShapeDelayed@ and @ShapeDelayedTarget@
+    -- 'UArray' family constructors,
+    -- which aren't presented in the docs because Haddock
+    -- doesn't support associated family constructors.
+    --
+    -- See source of "Data.Yarr.Repr.Delayed" module.
+    UArray(..),
 
-    
+    -- * Misc
+    L, SH, delay, delayShaped,
 ) where
 
 import Prelude as P

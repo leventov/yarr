@@ -1,5 +1,5 @@
 Name:                yarr
-Version:             0.9.1
+Version:             0.9.2
 Synopsis:            Yet another array library
 Description:
     Yarr is a new blazing fast dataflow framework (array library),
@@ -16,16 +16,15 @@ Description:
     > let greyImage = zipElems (\r g b -> 0.21 * r + 0.71 * g + 0.07 * b) image
     .
     The library is considerably faster than @repa@.
-    Canny edge detector on Yarr is 40% (on 5 threads)
-    and 55% (in sequential mode) faster then on @repa@.
+    See benchmark results: <https://github.com/leventov/yarr/blob/master/tests/bench-results.md>
     .
     Shortcoming by design: lack of pure indexing interface.
     .
-    /Work ahead:/
+    /Changes in version 0.9.2:/
     .
-        * Safe fold wrappers
+        * Safe folds -- see "Data.Yarr.Fold"
     .
-        * Unresolved issues with parameterized unrolling in slice-wise loading
+        * Issue with slice-wise loading with unrolled filling function solved
     .
     To start with, read documentation in the root module: "Data.Yarr".
     .
@@ -70,12 +69,12 @@ Library
         Data.Yarr.Base
         Data.Yarr.Eval
         Data.Yarr.Flow
+        Data.Yarr.Fold
         Data.Yarr.Shape
         Data.Yarr.Repr.Foreign
         Data.Yarr.Repr.Boxed
         Data.Yarr.Repr.Delayed
         Data.Yarr.Repr.Separate
-        Data.Yarr.Repr.Checked
         Data.Yarr.Convolution
         Data.Yarr.Utils.FixedVector
         Data.Yarr.Utils.Fork
@@ -83,6 +82,7 @@ Library
         Data.Yarr.Utils.Split
         Data.Yarr.Utils.Primitive
         Data.Yarr.Utils.LowLevelFlow
+        Debug.Yarr
 
     other-modules:
         Data.Yarr.Utils.Storable

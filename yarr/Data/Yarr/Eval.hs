@@ -9,6 +9,7 @@ module Data.Yarr.Eval (
     Load(..), RangeLoad(..),
     VecLoad(..), RangeVecLoad(..),
     compute,
+    dComputeP, dComputeS,
 
     -- * Common load types
     L, SH,
@@ -72,7 +73,7 @@ threads = return
 -- it should have only 3 parameters: @Load l tl sh@.
 -- But Convoluted ('Data.Yarr.Convolution.Repr.CV') representation is
 -- tightly connected with it's load type.
-class (USource r l sh a, UTarget tr tl sh a) =>
+class (USource r l sh a, UTarget tr tl sh a, Shape (LoadIndex l tl sh)) =>
         Load r l tr tl sh a where
     -- | Used in @fill@ parameter function.
     -- There are two options for this type to be: @sh@ itself or @Int@.
@@ -182,7 +183,8 @@ class (Load r l tr tl sh a, LoadIndex l tl sh ~ sh) =>
 --  * @e@ - vector element type, common for source and target arrays
 --
 class (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
-       Load slr l tslr tl sh e, Dim v ~ Dim v2) =>
+       Load slr l tslr tl sh e, Shape (LoadIndex l tl sh),
+       Dim v ~ Dim v2) =>
         VecLoad r slr l tr tslr tl sh v v2 e where
 
     -- | /O(n)/ Entirely, slice-wise loads vectors from source to target 
@@ -258,10 +260,26 @@ compute
     -> IO (UArray tr tl sh b) -- ^ Entirely loaded from the source,
                               -- 'freeze'd manifest target array
 {-# INLINE compute #-}
-compute load arr = do
+compute load = \arr -> do
     marr <- new (extent arr)
     load arr marr
     freeze marr
+
+dComputeP
+    :: (USource r l sh a, Manifest tr mtr tl sh a,
+        Load r l mtr tl sh a)
+    => UArray r l sh a 
+    -> IO (UArray tr tl sh a)
+{-# INLINE dComputeP #-}
+dComputeP = compute (loadP fill caps)
+
+dComputeS
+    :: (USource r l sh a, Manifest tr mtr tl sh a,
+        Load r l mtr tl sh a)
+    => UArray r l sh a 
+    -> IO (UArray tr tl sh a)
+{-# INLINE dComputeS #-}
+dComputeS = compute (loadS fill)
 
 -- | Determines maximum common range of 2 arrays -
 -- 'intersect'ion of their 'extent's.

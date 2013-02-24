@@ -68,9 +68,8 @@ zipElems fn arr = dmap (\v -> inspect v (Fun fn)) arr
 --     floatImage = mapElems 'fromIntegral' word8Image
 -- @
 mapElems
-    :: (VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l,
-        Vector v b)
+    :: (VecRegular r slr l sh v a, USource slr l sh a,
+        USource fslr l sh b, DefaultFusion slr fslr l, Vector v b)
     => (a -> b)                     -- ^ Mapper function for all elements
     -> UArray r l sh (v a)          -- ^ Source array of vectors
     -> UArray (SE fslr) l sh (v b)  -- ^ Fused array of vectors
@@ -84,9 +83,8 @@ mapElems f = dmapElems (V.replicate f)
 --
 -- @let domained = mapElemsM ('Data.Yarr.Utils.Primitive.clampM' 0.0 1.0) floatImage@
 mapElemsM
-    :: (VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l,
-        Vector v b)
+    :: (VecRegular r slr l sh v a, USource slr l sh a,
+        USource fslr l sh b, DefaultFusion slr fslr l, Vector v b)
     => (a -> IO b)                 -- ^ Monadic mapper for all vector elements
     -> UArray r l sh (v a)         -- ^ Source array of vectors
     -> UArray (SE fslr) l sh (v b) -- ^ Fused array of vectors

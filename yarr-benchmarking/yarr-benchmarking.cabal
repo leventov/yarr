@@ -1,5 +1,5 @@
 Name:                yarr-benchmarking
-Version:             0.9.1
+Version:             0.9.2
 Synopsis:            Yet another benchmarking suite for Yarr library
 Description:
     Based on "Data.Array.Repa.IO.Timing" module from @repa-io@ package.
@@ -23,7 +23,7 @@ source-repository head
 Library
     build-depends:
         base == 4.6.*,
-        yarr == 0.9.1,
+        yarr == 0.9.2,
         old-time == 1.1.*,
         rdtsc == 1.3.*
 

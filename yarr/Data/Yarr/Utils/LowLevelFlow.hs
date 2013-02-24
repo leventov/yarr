@@ -49,12 +49,12 @@ unrolledFill# unrollFactor tch get write start# end# =
 
 foldl#
     :: (b -> Int -> a -> IO b)
-    -> b
+    -> IO b
     -> (Int -> IO a)
     -> Int# -> Int#
     -> IO b
 {-# INLINE foldl# #-}
-foldl# reduce z get start# end# =
+foldl# reduce mz get start# end# =
     let {-# INLINE go# #-}
         go# i# b
             | i# >=# end# = return b
@@ -63,19 +63,19 @@ foldl# reduce z get start# end# =
                 a <- get i
                 b' <- reduce b i a
                 go# (i# +# 1#) b'
-    in go# start# z
+    in mz >>= go# start#
 
 unrolledFoldl#
     :: forall a b uf. Arity uf
     => uf
     -> (a -> IO ())
     -> (b -> Int -> a -> IO b)
-    -> b
+    -> IO b
     -> (Int -> IO a)
     -> Int# -> Int#
     -> IO b
 {-# INLINE unrolledFoldl# #-}
-unrolledFoldl# unrollFactor tch reduce z get start# end# =
+unrolledFoldl# unrollFactor tch reduce mz get start# end# =
     let !(I# uf#) = arity unrollFactor
         lim# = end# -# uf#
         {-# INLINE go# #-}
@@ -101,17 +101,17 @@ unrolledFoldl# unrollFactor tch reduce z get start# end# =
                 b' <- reduce b i a
                 rest# (i# +# 1#) b'
 
-    in go# start# z
+    in mz >>= go# start#
 
 
 foldr#
     :: (Int -> a -> b -> IO b)
-    -> b
+    -> IO b
     -> (Int -> IO a)
     -> Int# -> Int#
     -> IO b
 {-# INLINE foldr# #-}
-foldr# reduce z get start# end# =
+foldr# reduce mz get start# end# =
     let {-# INLINE go# #-}
         go# i# b
             | i# <# start# = return b
@@ -120,19 +120,19 @@ foldr# reduce z get start# end# =
                 a <- get i
                 b' <- reduce i a b
                 go# (i# -# 1#) b'
-    in go# (end# -# 1#) z
+    in mz >>= go# (end# -# 1#)
 
 unrolledFoldr#
     :: forall a b uf. Arity uf
     => uf
     -> (a -> IO ())
     -> (Int -> a -> b -> IO b)
-    -> b
+    -> IO b
     -> (Int -> IO a)
     -> Int# -> Int#
     -> IO b
 {-# INLINE unrolledFoldr# #-}
-unrolledFoldr# unrollFactor tch reduce z get start# end# =
+unrolledFoldr# unrollFactor tch reduce mz get start# end# =
     let !(I# uf#) = arity unrollFactor
         lim# = start# +# uf# -# 1#
         {-# INLINE go# #-}
@@ -158,5 +158,5 @@ unrolledFoldr# unrollFactor tch reduce z get start# end# =
                 b' <- reduce i a b
                 rest# (i# -# 1#) b'
 
-    in go# (end# -# 1#) z
+    in mz >>= go# (end# -# 1#)
 
