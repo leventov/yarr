@@ -214,7 +214,7 @@ supress !threshHigh magOrient = do
                        (1, 1) (ext `minus` (1, 1))
 
     time "supress" (ext `minus` (2, 2)) $
-        supressLoad (delayShaped magOrient) shapedSupressed
+        supressLoad magOrient shapedSupressed
 
     return supressed
 

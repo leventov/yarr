@@ -10,10 +10,11 @@ import Data.Yarr.Utils.Parallel as Par
 
 makeForkEachSlice
     :: (Shape sh, Arity n, v ~ VecList n)
-    => Int
-    -> sh -> sh
-    -> v (sh -> sh -> IO a)
-    -> (Int -> IO (v a))
+    => Int               -- ^ Number of threads to fork work on
+    -> sh                -- ^ Start
+    -> sh                -- ^ End
+    -> v (Work sh a)     -- ^ Slice works
+    -> (Int -> IO (v a)) -- ^ Thread work, returns piece of result for each slice
 {-# INLINE makeForkEachSlice #-}
 makeForkEachSlice threads start end rangeWorks =
     let {-# INLINE etWork #-}
@@ -23,10 +24,11 @@ makeForkEachSlice threads start end rangeWorks =
 
 makeForkSlicesOnce
     :: (Shape sh, Arity n)
-    => Int
-    -> VecList n (sh, sh)
-    -> VecList n (sh -> sh -> IO a)
-    -> (Int -> IO [(Int, a)])
+    => Int                    -- ^ Number of threads to fork work on
+    -> VecList n (sh, sh)     -- ^ (start, end) for each slice
+    -> VecList n (Work sh a)  -- ^ Slice works
+    -> (Int -> IO [(Int, a)]) -- ^ Thread work, returns pieces of results:
+                              -- [(slice number, result)]
 {-# INLINE makeForkSlicesOnce #-}
 makeForkSlicesOnce !threads ranges rangeWorks =
     let !slices = V.length rangeWorks
@@ -72,9 +74,11 @@ makeForkSlicesOnce !threads ranges rangeWorks =
 
 makeFork
     :: Shape sh
-    => Int
-    -> sh -> sh
-    -> ((sh -> sh -> IO a) -> (Int -> IO a))
+    => Int            -- ^ Number of threads to fork work on
+    -> sh             -- ^ Start
+    -> sh             -- ^ End
+    -> (Work sh a)    -- ^ Work
+    -> (Int -> IO a)  -- ^ Thread work
 {-# INLINE makeFork #-}
 makeFork chunks start end =
     let {-# INLINE chunkRange #-}

@@ -1,43 +1,31 @@
 {-# LANGUAGE InstanceSigs #-}
 
-module Data.Yarr.Shape where
+module Data.Yarr.Shape (
+    -- * Flow types hierarchy
+    module Data.Yarr.WorkTypes,
+
+    -- * Shape and BlockShape
+    Block, Shape(..), BlockShape(..),
+
+    -- * Shape instances
+    Dim1, Dim2, Dim3,
+
+    -- * Specialized flow
+    dim2BlockFill,
+) where
 
 import Prelude as P hiding (foldl, foldr)
 import GHC.Exts
 
 import Control.DeepSeq
 
+import Data.Yarr.WorkTypes
+
 import Data.Yarr.Utils.FixedVector as V hiding (foldl, foldr)
 import Data.Yarr.Utils.LowLevelFlow
 import Data.Yarr.Utils.Primitive
 import Data.Yarr.Utils.Split
 
--- | Alias to frequently used get-write-from-to arguments combo.
---
--- Passed as 1st parameter of all 'Data.Yarr.Eval.Load'ing functions
--- from "Data.Yarr.Eval" module.
-type Fill sh a =
-       (sh -> IO a)       -- ^ Get
-    -> (sh -> a -> IO ()) -- ^ Write
-    -> sh                 -- ^ Start
-    -> sh                 -- ^ End
-    -> IO ()
-
-type Foldl sh a b =
-       (b -> sh -> a -> IO b) -- ^ Generalized left reduce
-    -> IO b                   -- ^ Zero
-    -> (sh -> IO a)           -- ^ Get
-    -> sh                     -- ^ Start
-    -> sh                     -- ^ End
-    -> IO b                   -- ^ Result
-
-type Foldr sh a b =
-       (sh -> a -> b -> IO b) -- ^ Generalized right reduce
-    -> IO b                   -- ^ Zero
-    -> (sh -> IO a)           -- ^ Get
-    -> sh                     -- ^ Start
-    -> sh                     -- ^ End
-    -> IO b                   -- ^ Result
 
 -- | Mainly for internal use.
 -- Abstracts top-left -- bottom-right pair of indices.
@@ -583,5 +571,3 @@ instance Shape Dim3 where
     {-# INLINE unrolledFoldl #-}
     {-# INLINE foldr #-}
     {-# INLINE unrolledFoldr #-}
-
-

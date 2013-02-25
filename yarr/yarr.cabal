@@ -1,5 +1,5 @@
 Name:                yarr
-Version:             0.9.2
+Version:             1.2.1
 Synopsis:            Yet another array library
 Description:
     Yarr is a new blazing fast dataflow framework (array library),
@@ -85,6 +85,8 @@ Library
         Debug.Yarr
 
     other-modules:
+        Data.Yarr.WorkTypes
+
         Data.Yarr.Utils.Storable
 
         -- re-exported in Utils.FixedVector

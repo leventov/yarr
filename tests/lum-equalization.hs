@@ -100,7 +100,7 @@ main = do
             write cdf i nc
             return nc
     time "hist to cdf fold" (256 :: Int) $
-        runFold (S.unrolledFoldl n2 noTouch acc) (return 0) hist
+        runIFold (S.unrolledFoldl n2 noTouch acc) (return 0) hist
 
     minCdf <- index cdf 0
     let sz = size ext

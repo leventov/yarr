@@ -13,6 +13,8 @@ import Data.Yarr.Utils.Parallel
 import Data.Yarr.Utils.Split
 
 
+instance Shape sh => PreferredWorkIndex CVL sh sh
+
 instance (BlockShape sh, UTarget tr tl sh a) =>
         Load CV CVL tr tl sh a where
     type LoadIndex CVL tl sh = sh

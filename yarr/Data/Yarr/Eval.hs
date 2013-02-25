@@ -8,6 +8,8 @@ module Data.Yarr.Eval (
     -- * Load classes
     Load(..), RangeLoad(..),
     VecLoad(..), RangeVecLoad(..),
+
+    -- * Compute functions
     compute,
     dComputeP, dComputeS,
 
@@ -15,7 +17,10 @@ module Data.Yarr.Eval (
     L, SH,
 
     -- * Utility
-    entire
+    entire,
+
+    -- * Work index
+    WorkIndex(..), PreferredWorkIndex(..),
 
 ) where
 
@@ -47,6 +52,37 @@ threads :: Int -> Threads
 {-# INLINE threads #-}
 threads = return
 
+-- | Internal implementation class.
+class (Shape sh, Shape i) => WorkIndex sh i where
+    gindex :: USource r l sh a => UArray r l sh a -> i -> IO a
+    gwrite :: UTarget tr tl sh a => UArray tr tl sh a -> i -> a -> IO ()
+    gsize :: USource r l sh a => UArray r l sh a -> i
+
+instance Shape sh => WorkIndex sh sh where
+    gindex = index
+    gwrite = write
+    gsize = extent
+    {-# INLINE gindex #-}
+    {-# INLINE gwrite #-}
+    {-# INLINE gsize #-}
+
+#define WI_INT_INST(sh)           \
+instance WorkIndex sh Int where { \
+    gindex = linearIndex;         \
+    gwrite = linearWrite;         \
+    gsize = size . extent;        \
+    {-# INLINE gindex #-};        \
+    {-# INLINE gwrite #-};        \
+    {-# INLINE gsize #-};         \
+}
+
+WI_INT_INST(Dim2)
+WI_INT_INST(Dim3)
+
+-- | Internal implementation class.
+class WorkIndex sh i => PreferredWorkIndex l sh i | l sh -> i where
+
+
 -- | This class abstracts pair of array types,
 -- which could be loaded one to another.
 --
@@ -73,7 +109,8 @@ threads = return
 -- it should have only 3 parameters: @Load l tl sh@.
 -- But Convoluted ('Data.Yarr.Convolution.Repr.CV') representation is
 -- tightly connected with it's load type.
-class (USource r l sh a, UTarget tr tl sh a, Shape (LoadIndex l tl sh)) =>
+class (USource r l sh a, UTarget tr tl sh a,
+       WorkIndex sh (LoadIndex l tl sh)) =>
         Load r l tr tl sh a where
     -- | Used in @fill@ parameter function.
     -- There are two options for this type to be: @sh@ itself or @Int@.
@@ -100,6 +137,14 @@ class (USource r l sh a, UTarget tr tl sh a, Shape (LoadIndex l tl sh)) =>
           -> UArray r l sh a            -- ^ Source array
           -> UArray tr tl sh a          -- ^ Target array
           -> IO ()
+    loadP fill threads arr tarr = do
+        force arr
+        force tarr
+        !ts <- threads
+        parallel_ ts $
+            makeFork ts zero (gsize arr) (fill (gindex arr) (gwrite tarr))
+        touchArray arr
+        touchArray tarr
 
     -- | /O(n)/ Sequential analog of 'loadP' function.
     -- Loads source to target 'entire'ly.
@@ -111,6 +156,16 @@ class (USource r l sh a, UTarget tr tl sh a, Shape (LoadIndex l tl sh)) =>
           -> UArray r l sh a            -- ^ Source array
           -> UArray tr tl sh a          -- ^ Target array
           -> IO ()
+    loadS fill arr tarr = do
+        force arr
+        force tarr
+        fill (gindex arr) (gwrite tarr) zero (gsize arr)
+        touchArray arr
+        touchArray tarr
+
+    {-# INLINE loadP #-}
+    {-# INLINE loadS #-}
+
 
 -- | Class abstracts pair of arrays which could be loaded in
 -- just specified range of indices.
@@ -120,8 +175,7 @@ class (USource r l sh a, UTarget tr tl sh a, Shape (LoadIndex l tl sh)) =>
 -- cube for 'Dim3'. Thus, it is specified by pair of indices:
 -- \"top-left\" (minimum is 'zero') and \"bottom-right\" (maximum is
 -- @('entire' arr tarr)@) corners.
-class (Load r l tr tl sh a, LoadIndex l tl sh ~ sh) =>
-        RangeLoad r l tr tl sh a where
+class Load r l tr tl sh a => RangeLoad r l tr tl sh a where
 
     -- | /O(n)/ Loads elements from source to target in specified range
     -- in parallel.
@@ -141,6 +195,14 @@ class (Load r l tr tl sh a, LoadIndex l tl sh ~ sh) =>
         -> sh                -- ^ Top-left 
         -> sh                -- ^ and bottom-right corners of range to load
         -> IO ()
+    rangeLoadP fill threads arr tarr start end = do
+        force arr
+        force tarr
+        !ts <- threads
+        parallel_ ts $
+            makeFork ts start end (fill (index arr) (write tarr))
+        touchArray arr
+        touchArray tarr
 
     -- | /O(n)/ Sequentially loads elements from source to target in specified range.
     rangeLoadS
@@ -150,6 +212,17 @@ class (Load r l tr tl sh a, LoadIndex l tl sh ~ sh) =>
         -> sh                -- ^ Top-left
         -> sh                -- ^ and bottom-right corners of range to load
         -> IO ()
+    rangeLoadS fill arr tarr start end = do
+        force arr
+        force tarr
+        fill (index arr) (write tarr) start end
+        touchArray arr
+        touchArray tarr
+
+    {-# INLINE rangeLoadP #-}
+    {-# INLINE rangeLoadS #-}
+
+
 
 
 -- | Class abstracts /separated in time and space/ loading 'slices' of one array type
@@ -183,8 +256,7 @@ class (Load r l tr tl sh a, LoadIndex l tl sh ~ sh) =>
 --  * @e@ - vector element type, common for source and target arrays
 --
 class (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
-       Load slr l tslr tl sh e, Shape (LoadIndex l tl sh),
-       Dim v ~ Dim v2) =>
+       Load slr l tslr tl sh e, Dim v ~ Dim v2) =>
         VecLoad r slr l tr tslr tl sh v v2 e where
 
     -- | /O(n)/ Entirely, slice-wise loads vectors from source to target 
@@ -202,6 +274,18 @@ class (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
         -> UArray r l sh (v e)        -- ^ Source array of vectors
         -> UArray tr tl sh (v2 e)     -- ^ Target array of vectors
         -> IO ()
+    loadSlicesP fill threads arr tarr = do
+        force arr
+        force tarr
+        !ts <- threads
+        parallel_ ts $
+            makeForkSlicesOnce
+                ts (V.replicate (zero, gsize arr))
+                (V.zipWith
+                    (\sl tsl -> fill (gindex sl) (gwrite tsl))
+                    (slices arr) (slices tarr))
+        touchArray arr
+        touchArray tarr
 
     -- | /O(n)/ Sequentially loads vectors from source to target, slice by slice.
     loadSlicesS
@@ -209,11 +293,21 @@ class (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
         -> UArray r l sh (v e)        -- ^ Source array of vectors
         -> UArray tr tl sh (v2 e)     -- ^ Target array of vectors
         -> IO ()
+    loadSlicesS fill arr tarr = do
+        force arr
+        force tarr
+        V.zipWithM_ (loadS fill) (slices arr) (slices tarr)
+        touchArray arr
+        touchArray tarr
+
+    {-# INLINE loadSlicesP #-}
+    {-# INLINE loadSlicesS #-}
+
 
 -- | This class extends 'VecLoad' just like 'RangeLoad' extends 'Load'.
 -- It abstracts slice-wise loading from one array type to
 -- another in specified range.
-class (VecLoad r slr l tr tslr tl sh v v2 e, LoadIndex l tl sh ~ sh) =>
+class (VecLoad r slr l tr tslr tl sh v v2 e, RangeLoad slr l tslr tl sh e) =>
         RangeVecLoad r slr l tr tslr tl sh v v2 e where
 
     -- | /O(n)/ Loads vectors from source to target in specified range, slice-wise,
@@ -226,6 +320,18 @@ class (VecLoad r slr l tr tslr tl sh v v2 e, LoadIndex l tl sh ~ sh) =>
         -> sh                     -- ^ Top-left
         -> sh                     -- ^ and bottom-right corners of range to load
         -> IO ()
+    rangeLoadSlicesP fill threads arr tarr start end = do
+        force arr
+        force tarr
+        !ts <- threads
+        parallel_ ts $
+            makeForkSlicesOnce
+                ts (V.replicate (start, end))
+                (V.zipWith
+                    (\sl tsl -> fill (index sl) (write tsl))
+                    (slices arr) (slices tarr))
+        touchArray arr
+        touchArray tarr
 
     -- | /O(n)/ Sequentially loads vector elements from source to target
     -- in specified range, slice by slice.
@@ -236,6 +342,18 @@ class (VecLoad r slr l tr tslr tl sh v v2 e, LoadIndex l tl sh ~ sh) =>
         -> sh                     -- ^ Top-left
         -> sh                     -- ^ and bottom-right corners of range to load
         -> IO ()
+    rangeLoadSlicesS fill arr tarr start end = do
+        force arr
+        force tarr
+        V.zipWithM_
+            (\sl tsl -> rangeLoadS fill sl tsl start end)
+            (slices arr) (slices tarr)
+        touchArray arr
+        touchArray tarr
+
+    {-# INLINE rangeLoadSlicesP #-}
+    {-# INLINE rangeLoadSlicesS #-}
+
 
 -- | /O(n)/ This function simplifies the most common way of loading
 -- arrays.
@@ -265,6 +383,9 @@ compute load = \arr -> do
     load arr marr
     freeze marr
 
+-- | Most common parallel use case of 'compute'.
+--
+-- @dComputeP = 'compute' ('loadP' 'S.fill' 'caps')@
 dComputeP
     :: (USource r l sh a, Manifest tr mtr tl sh a,
         Load r l mtr tl sh a)
@@ -273,6 +394,10 @@ dComputeP
 {-# INLINE dComputeP #-}
 dComputeP = compute (loadP fill caps)
 
+
+-- | Most common sequential use case of 'compute'.
+--
+-- @dComputeS = 'compute' ('loadS' 'S.fill')@
 dComputeS
     :: (USource r l sh a, Manifest tr mtr tl sh a,
         Load r l mtr tl sh a)
@@ -293,55 +418,21 @@ entire arr tarr = intersect (vl_2 (extent arr) (extent tarr))
 -- functions defined by default.
 data L
 
-instance (USource r L sh a, UTarget tr L sh a) => Load r L tr L sh a where
+instance WorkIndex sh Int => PreferredWorkIndex L sh Int
 
+instance (USource r L sh a, UTarget tr L sh a, WorkIndex sh Int) =>
+        Load r L tr L sh a where
     type LoadIndex L L sh = Int
-    
-    loadP lfill threads arr tarr = do
-        force arr
-        force tarr
-        !ts <- threads
-        parallel_ ts $
-            makeFork ts 0 (size (extent arr))
-                     (lfill (linearIndex arr) (linearWrite tarr))
-        touchArray arr
-        touchArray tarr
 
-    loadS lfill arr tarr = do
-        force arr
-        force tarr
-        lfill (linearIndex arr) (linearWrite tarr) 0 (size (extent arr))
-        touchArray arr
-        touchArray tarr
-
-    {-# INLINE loadP #-}
-    {-# INLINE loadS #-}
+instance Load r L tr L sh a => RangeLoad r L tr L sh a
 
 instance (UVecSource r slr L sh v e, UVecTarget tr tslr L sh v2 e,
           Load slr L tslr L sh e, Dim v ~ Dim v2) =>
-        VecLoad r slr L tr tslr L sh v v2 e where
-    loadSlicesP lfill threads arr tarr = do
-        force arr
-        force tarr
-        !ts <- threads
-        parallel_ ts $
-            makeForkSlicesOnce
-                ts (V.replicate (0, size (extent arr)))
-                (V.zipWith
-                    (\sl tsl -> lfill (linearIndex sl) (linearWrite tsl))
-                    (slices arr) (slices tarr))
-        touchArray arr
-        touchArray tarr
+        VecLoad r slr L tr tslr L sh v v2 e
 
-    loadSlicesS lfill arr tarr = do
-        force arr
-        force tarr
-        V.zipWithM_ (loadS lfill) (slices arr) (slices tarr)
-        touchArray arr
-        touchArray tarr
+instance (VecLoad r slr L tr tslr L sh v v2 e, RangeLoad slr L tslr L sh e) =>
+        RangeVecLoad r slr L tr tslr L sh v v2 e
 
-    {-# INLINE loadSlicesP #-}
-    {-# INLINE loadSlicesS #-}
 
 -- | General shape load type index. 'UArray's with 'SH' load type index
 -- specialize 'index' and 'write' and leave 'linearIndex' and 'linearWrite'
@@ -354,119 +445,22 @@ instance (UVecSource r slr L sh v e, UVecTarget tr tslr L sh v2 e,
 -- Integral division is very expensive operation even on modern CPUs.
 data SH
 
-#define SH_LOAD_INST(l,tl)                                               \
-instance (USource r l sh a, UTarget tr tl sh a) =>                       \
-        Load r l tr tl sh a where {                                      \
-    type LoadIndex l tl sh = sh;                                         \
-    loadP fill threads arr tarr =                                        \
-        shRangeLoadP fill threads arr tarr zero (entire arr tarr);       \
-    loadS fill arr tarr =                                                \
-        shRangeLoadS fill arr tarr zero (entire arr tarr);               \
-    {-# INLINE loadP #-};                                                \
-    {-# INLINE loadS #-};                                                \
-};                                                                       \
-instance (USource r l sh a, UTarget tr tl sh a) =>                       \
-        RangeLoad r l tr tl sh a where {                                 \
-    rangeLoadP = shRangeLoadP;                                           \
-    rangeLoadS = shRangeLoadS;                                           \
-    {-# INLINE rangeLoadP #-};                                           \
-    {-# INLINE rangeLoadS #-};                                           \
-};                                                                       \
-instance (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,      \
-          Load slr l tslr tl sh e, Dim v ~ Dim v2) =>                    \
-        VecLoad r slr l tr tslr tl sh v v2 e where {                     \
-    loadSlicesP fill threads arr tarr =                                  \
-        shRangeLoadSlicesP fill threads arr tarr zero (entire arr tarr); \
-    loadSlicesS fill arr tarr =                                          \
-        shRangeLoadSlicesS fill arr tarr zero (entire arr tarr);         \
-    {-# INLINE loadSlicesP #-};                                          \
-    {-# INLINE loadSlicesS #-};                                          \
-};                                                                       \
-instance (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,      \
-          Load slr l tslr tl sh e, Dim v ~ Dim v2) =>                    \
-        RangeVecLoad r slr l tr tslr tl sh v v2 e where {                \
-    rangeLoadSlicesP = shRangeLoadSlicesP;                               \
-    rangeLoadSlicesS = shRangeLoadSlicesS;                               \
-    {-# INLINE rangeLoadSlicesP #-};                                     \
-    {-# INLINE rangeLoadSlicesS #-};                                     \
-}
+instance Shape sh => PreferredWorkIndex SH sh sh
+
+#define SH_LOAD_INST(l,tl)                                          \
+instance (USource r l sh a, UTarget tr tl sh a) =>                  \
+        Load r l tr tl sh a where {                                 \
+    type LoadIndex l tl sh = sh;                                    \
+};                                                                  \
+instance Load r l tr tl sh a => RangeLoad r l tr tl sh a;           \
+instance (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e, \
+          Load slr l tslr tl sh e, Dim v ~ Dim v2) =>               \
+        VecLoad r slr l tr tslr tl sh v v2 e;                       \
+instance (VecLoad r slr l tr tslr tl sh v v2 e,                     \
+          RangeLoad slr l tslr tl sh e) =>                          \
+        RangeVecLoad r slr l tr tslr tl sh v v2 e;                  \
 
 SH_LOAD_INST(SH,L)
 SH_LOAD_INST(L,SH)
 SH_LOAD_INST(SH,SH)
 
-
-shRangeLoadP
-    :: (USource r l sh a, UTarget tr tl sh a)
-    => Fill sh a
-    -> Threads
-    -> UArray r l sh a
-    -> UArray tr tl sh a
-    -> sh -> sh
-    -> IO ()
-{-# INLINE shRangeLoadP #-}
-shRangeLoadP fill threads arr tarr start end = do
-    force arr
-    force tarr
-    !ts <- threads
-    parallel_ ts $
-        makeFork ts start end (fill (index arr) (write tarr))
-    touchArray arr
-    touchArray tarr
-
-shRangeLoadS
-    :: (USource r l sh a, UTarget tr tl sh a)
-    => Fill sh a
-    -> UArray r l sh a
-    -> UArray tr tl sh a
-    -> sh -> sh
-    -> IO ()
-{-# INLINE shRangeLoadS #-}
-shRangeLoadS fill arr tarr start end = do
-    force arr
-    force tarr
-    fill (index arr) (write tarr) start end
-    touchArray arr
-    touchArray tarr
-
-
-shRangeLoadSlicesP
-    :: (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
-        Dim v ~ Dim v2)
-    => Fill sh e
-    -> Threads
-    -> UArray r l sh (v e)
-    -> UArray tr tl sh (v2 e)
-    -> sh -> sh
-    -> IO ()
-{-# INLINE shRangeLoadSlicesP #-}
-shRangeLoadSlicesP fill threads arr tarr start end = do
-    force arr
-    force tarr
-    !ts <- threads
-    parallel_ ts $
-        makeForkSlicesOnce
-            ts (V.replicate (start, end))
-            (V.zipWith
-                (\sl tsl -> fill (index sl) (write tsl))
-                (slices arr) (slices tarr))
-    touchArray arr
-    touchArray tarr
-
-shRangeLoadSlicesS
-    :: (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
-        Dim v ~ Dim v2)
-    => Fill sh e
-    -> UArray r l sh (v e)
-    -> UArray tr tl sh (v2 e)
-    -> sh -> sh
-    -> IO ()
-{-# INLINE shRangeLoadSlicesS #-}
-shRangeLoadSlicesS fill arr tarr start end = do
-    force arr
-    force tarr
-    V.zipWithM_
-        (\sl tsl -> shRangeLoadS fill sl tsl start end)
-        (slices arr) (slices tarr)
-    touchArray arr
-    touchArray tarr

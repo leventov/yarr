@@ -2,9 +2,10 @@
 module Data.Yarr.Utils.Split where
 
 makeSplitIndex
-    :: Int
-    -> Int -> Int
-    -> (Int -> Int)
+    :: Int          -- ^ Number of chunks to split range on (@n@)
+    -> Int          -- ^ Start of range
+    -> Int          -- ^ End of range
+    -> (Int -> Int) -- ^ Split index function
 {-# INLINE makeSplitIndex #-}
 makeSplitIndex chunks start end =
     let !len = end - start
@@ -14,8 +15,11 @@ makeSplitIndex chunks start end =
                  in \c -> if c < chunkLeftover
                         then start + c * (chunkLen + 1)
                         else start + c * chunkLen + chunkLeftover
-
-evenChunks :: [a] -> Int -> [[a]]
+-- | Well-known missed in "Data.List.Split" function.
+evenChunks
+    :: [a]    -- ^ List to split
+    -> Int    -- ^ Number of chuncks (@n@)
+    -> [[a]]  -- ^ Exactly @n@ even chunks of the initial list
 {-# INLINE evenChunks #-}
 evenChunks xs n =
     let len = length xs
