@@ -13,7 +13,7 @@ module Data.Yarr.Repr.Delayed (
     UArray(..),
 
     -- * Misc
-    L, SH, delay, delayShaped,
+    L, SH, fromFunction, delay, delayShaped,
 ) where
 
 import Prelude as P
@@ -223,6 +223,21 @@ delay :: (USource r l sh a, USource D l sh a, Fusion r D l)
       => UArray r l sh a -> UArray D l sh a
 {-# INLINE delay #-}
 delay = B.fmap id
+
+-- | Wrap indexing function into delayed representation.
+-- 
+-- Use this function carefully, don't implement through it something
+-- that has specialized implementation in the library (mapping, zipping, etc).
+--
+-- Suitable to obtain arrays of constant element,
+-- of indices (@fromFunction sh 'id'@), and so on.
+fromFunction
+    :: Shape sh
+    => sh               -- ^ Extent of array
+    -> (sh -> IO a)     -- ^ Indexing function
+    -> UArray D SH sh a -- ^ Result array
+{-# INLINE fromFunction #-}
+fromFunction sh f = ShapeDelayed sh (return ()) (return ()) f
 
 -- | Wraps @('index' arr)@ into Delayed representation. Normally you shouldn't need
 -- to use this function. It may be dangerous for performance, because

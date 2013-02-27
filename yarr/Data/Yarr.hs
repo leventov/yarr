@@ -71,6 +71,9 @@
     Currently there is only one option \"out of the box\" - to load image :)
     See "Data.Yarr.IO.Image" module in @yarr-image-io@ package.
 
+    Consider also "Data.Yarr.IO.List" module,
+    although it is very slow way to obtain manifest array in memory.
+
     /How to map and zip arrays:/
 
     See 'DefaultFusion' class and functions in "Data.Yarr.Flow" module.
@@ -181,7 +184,7 @@ module Data.Yarr (
     F, unsafeFromForeignPtr, toForeignPtr,
     
     -- ** Delayed
-    D, UArray(LinearDelayed, ShapeDelayed), delay,
+    D, UArray(LinearDelayed, ShapeDelayed), fromFunction, delay,
 
     -- ** Separate
     SE, fromSlices, unsafeMapSlices

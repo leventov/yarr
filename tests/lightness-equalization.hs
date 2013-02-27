@@ -70,8 +70,6 @@ main = do
             dComputeP $
                 dmap (rgb2hsl . V.map normalizeByte) image
 
-
-
     let lightness = (slices hslImage) V.! 2
 
         emptyHist :: IO (UArray F L Dim1 Int)
@@ -88,7 +86,7 @@ main = do
 
     hist <- time "lightness hist fold" ext $
         workP caps (mutate (S.unrolledFill n4 noTouch) incHist)
-                   (emptyHist) joinHists lightness
+                   emptyHist joinHists lightness
 
     let cdf = hist
         acc c i v = do
@@ -107,6 +105,7 @@ main = do
 
     time "lightness equalization" ext $
         loadP S.fill caps (dmapM eq lightness) lightness
+    touchArray cdf
 
     (equalized :: FImage (VecList N3 Word8)) <-
         time "float hsl to w8 rgb" ext $

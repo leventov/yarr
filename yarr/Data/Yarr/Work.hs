@@ -17,12 +17,10 @@ module Data.Yarr.Work (
     mutate, imutate,
 
     -- * Work runners
-    work, iwork, workP, iworkP,
-    workOnSlicesSeparate, iworkOnSlicesSeparate,
-    workOnSlicesSeparateP, iworkOnSlicesSeparateP,
-
-    -- * Shortcuts
-    toList,
+    work, iwork, rangeWork,
+    workP, iworkP, rangeWorkP,
+    workOnSlicesSeparate, iworkOnSlicesSeparate, rangeWorkOnSlicesSeparate,
+    workOnSlicesSeparateP, iworkOnSlicesSeparateP, rangeWorkOnSlicesSeparateP,
 
     -- * Aliases for work types
     StatefulWork, Foldl, Foldr,
@@ -74,7 +72,9 @@ reduceR foldr rf = foldr (\_ a b -> return $ rf a b)
 
 -- | /O(0)/
 mutate
-    :: Fill i a           -- ^ 'S.fill' or curried 'S.unrolledFill'
+    :: Fill i a           -- ^ 'S.fill' or curried 'S.unrolledFill'.
+                          -- If mutating is associative,
+                          -- 'S.dim2BlockFill' is also acceptable.
     -> (s -> a -> IO ())  -- ^ (state -> array element -> (state has changed))
                           -- -- State mutating function
     -> StatefulWork i a s -- ^ Result stateful work to be passed
@@ -83,9 +83,11 @@ mutate
 mutate fill mf = imutate fill (\s i -> mf s)
 
 -- | /O(0)/ Version of 'mutate', accepts mutating function
--- which additionaly accepts array index
+-- which additionaly accepts array index.
 imutate
-    :: Fill i a               -- ^ 'S.fill' or curried 'S.unrolledFill'
+    :: Fill i a               -- ^ 'S.fill' or curried 'S.unrolledFill'.
+                              -- If mutating is associative,
+                              -- 'S.dim2BlockFill' is also acceptable.
     -> (s -> i -> a -> IO ()) -- ^ Indexed state mutating function
     -> StatefulWork i a s     -- ^ Result stateful work to be passed
                               -- to work runners
@@ -101,13 +103,13 @@ imutate fill imf ms index start end = do
 --
 -- Example:
 --
--- @'toList' = work ('reduceR' 'S.foldr' (:)) (return [])@
+-- @'Data.Yarr.IO.List.toList' = work ('reduceR' 'S.foldr' (:)) (return [])@
 work
     :: (USource r l sh a, PreferredWorkIndex l sh i)
     => StatefulWork i a s -- ^ Stateful working function
     -> IO s               -- ^ Monadic initial state (fold zero).
                           -- Wrap pure state in 'return'.
-    -> UArray r l sh a    -- ^ Source array 
+    -> UArray r l sh a    -- ^ Source array
     -> IO s               -- ^ Final state (fold result)
 {-# INLINE work #-}
 work = anyWork
@@ -122,10 +124,23 @@ iwork
     => StatefulWork sh a s -- ^ Stateful working function
     -> IO s                -- ^ Monadic initial state (fold zero).
                            -- Wrap pure state in 'return'.
-    -> UArray r l sh a     -- ^ Source array 
+    -> UArray r l sh a     -- ^ Source array
     -> IO s                -- ^ Final state (fold result)
 {-# INLINE iwork #-}
 iwork = anyWork
+
+-- | /O(n)/ Run stateful work in specified range of indices.
+rangeWork
+    :: USource r l sh a
+    => StatefulWork sh a s -- ^ Stateful working function
+    -> IO s                -- ^ Monadic initial state (fold zero).
+                           -- Wrap pure state in 'return'.
+    -> UArray r l sh a     -- ^ Source array
+    -> sh                  -- ^ Top-left
+    -> sh                  -- ^ and bottom-right corners of range to work in
+    -> IO s                -- ^ Final state (fold result)
+{-# INLINE rangeWork #-}
+rangeWork = anyRangeWork
 
 
 -- | /O(n)/ Run associative non-indexed stateful work in parallel.
@@ -153,9 +168,24 @@ iworkP
                            -- Wrap pure state in 'return'.
     -> (s -> s -> IO s)    -- ^ Associative monadic state joining function
     -> UArray r l sh a     -- ^ Source array
-    -> IO s                -- ^ Fold result
+    -> IO s                -- ^ Gathered state (fold result)
 {-# INLINE iworkP #-}
 iworkP = anyWorkP
+
+-- | /O(n)/ Run associative stateful work in specified range in parallel.
+rangeWorkP
+    :: USource r l sh a
+    => Threads             -- ^ Number of threads to parallelize work on
+    -> StatefulWork sh a s -- ^ Associative stateful working function
+    -> IO s                -- ^ Monadic zero state.
+                           -- Wrap pure state in 'return'.
+    -> (s -> s -> IO s)    -- ^ Associative monadic state joining function
+    -> UArray r l sh a     -- ^ Source array
+    -> sh                  -- ^ Top-left
+    -> sh                  -- ^ and bottom-right corners of range to work in
+    -> IO s                -- ^ Gathered state (fold result)
+{-# INLINE rangeWorkP #-}
+rangeWorkP = anyRangeWorkP
 
 
 -- | /O(n)/ Run non-indexed stateful work over each slice of array of vectors.
@@ -179,6 +209,20 @@ iworkOnSlicesSeparate
     -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
 {-# INLINE iworkOnSlicesSeparate #-}
 iworkOnSlicesSeparate = anyWorkOnSlicesSeparate
+
+-- | /O(n)/ Run stateful work in specified range
+-- over each slice of array of vectors.
+rangeWorkOnSlicesSeparate
+    :: UVecSource r slr l sh v e
+    => StatefulWork sh e s    -- ^ Stateful slice-wise working function
+    -> IO s                   -- ^ Monadic initial state (fold zero).
+                              -- Wrap pure state in 'return'.
+    -> UArray r l sh (v e)    -- ^ Source array of vectors
+    -> sh                     -- ^ Top-left
+    -> sh                     -- ^ and bottom-right corners of range to work in
+    -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
+{-# INLINE rangeWorkOnSlicesSeparate #-}
+rangeWorkOnSlicesSeparate = anyRangeWorkOnSlicesSeparate
 
 
 -- | /O(n)/ Run associative non-indexed stateful work
@@ -209,11 +253,18 @@ iworkOnSlicesSeparateP
 {-# INLINE iworkOnSlicesSeparateP #-}
 iworkOnSlicesSeparateP = anyWorkOnSlicesSeparateP
 
-
-
--- | /O(n)/ Covert array to list.
-toList
-    :: (USource r l sh a, PreferredWorkIndex l sh i)
-    => UArray r l sh a
-    -> IO [a]
-toList = work (reduceR S.foldr (:)) (return [])
+-- | /O(n)/ Run associative stateful work in specified range
+-- over slices of array of vectors in parallel.
+rangeWorkOnSlicesSeparateP
+    :: UVecSource r slr l sh v e
+    => Threads                -- ^ Number of threads to parallelize work on
+    -> StatefulWork sh e s    -- ^ Stateful slice-wise working function
+    -> IO s                   -- ^ Monadic zero state.
+                              -- Wrap pure state in 'return'.
+    -> (s -> s -> IO s)       -- ^ Associative monadic state joining function
+    -> UArray r l sh (v e)    -- ^ Source array of vectors
+    -> sh                     -- ^ Top-left
+    -> sh                     -- ^ and bottom-right corners of range to work in
+    -> IO (VecList (Dim v) s) -- ^ Vector of gathered per slice results
+{-# INLINE rangeWorkOnSlicesSeparateP #-}
+rangeWorkOnSlicesSeparateP = anyRangeWorkOnSlicesSeparateP

@@ -15,6 +15,7 @@ import System.IO
 
 import Data.Yarr as Y
 import Data.Yarr.Shape as S
+import Data.Yarr.Work
 import Data.Yarr.Repr.Foreign
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Convolution as C
@@ -44,7 +45,7 @@ run repeats threshLow threshHigh imageFile = do
     anyImage <- readImage imageFile
 
     image <-
-        compute (loadS S.fill) $
+        dComputeS $
             mapElems fromIntegral $ readRGBVectors anyImage
 
     edges <- new (extent image)
@@ -222,62 +223,66 @@ supress !threshHigh magOrient = do
 wildfire :: FImage Word8 -> FImage Word8 -> IO ()
 wildfire edges target = do
 
-    let ext = extent edges
-    (stack :: FImage (VecTuple N2 Int16)) <- new ext
+    let ext@(h, w) = extent edges
 
-    let {-# INLINE stackIndex #-}
-        stackIndex i = do
-            ix16 <- linearIndex stack i
+    let newStack :: IO (UArray F L Dim1 (VecTuple N2 Int16))
+        newStack = new (h * w)
+
+        finalizeStacks s1 s2 =
+            touchArray s1 >> return s2
+
+        {-# INLINE stackIndex #-}
+        stackIndex stack i = do
+            ix16 <- index stack i
             let (VT_2 ix) = V.map fromIntegral ix16
             return ix
 
         {-# INLINE stackWrite #-}
-        stackWrite i ix = linearWrite stack i (V.map fromIntegral (VT_2 ix))
+        stackWrite stack i ix =
+            linearWrite stack i (V.map fromIntegral (VT_2 ix))
 
         {-# INLINE pushWeak #-}
-        pushWeak ix top = do
+        pushWeak stack ix top = do
             edge <- index edges ix
             if edge == noEdge
                 then return top
                 else do
-                    stackWrite top ix
+                    stackWrite stack top ix
                     write edges ix noEdge
                     return (top + 1)
 
         {-# INLINE fire #-}
-        fire top
+        fire stack top
             | top == 0  = return ()
             | otherwise = do
-                let !top' = top - 1
-                ix@(!y, !x) <- stackIndex top'
+                let top' = top - 1
+                ix@(y, x) <- stackIndex stack top'
                 write target ix strong
-                    >>  pushWeak (y - 1, x - 1) top'
-                    >>= pushWeak (y - 1, x)
-                    >>= pushWeak (y - 1, x + 1)
+                    >>  pushWeak stack (y - 1, x - 1) top'
+                    >>= pushWeak stack (y - 1, x)
+                    >>= pushWeak stack (y - 1, x + 1)
 
-                    >>= pushWeak (y,     x - 1)
-                    >>= pushWeak (y,     x + 1)
+                    >>= pushWeak stack (y,     x - 1)
+                    >>= pushWeak stack (y,     x + 1)
 
-                    >>= pushWeak (y + 1, x - 1)
-                    >>= pushWeak (y + 1, x)
-                    >>= pushWeak (y + 1, x + 1)
+                    >>= pushWeak stack (y + 1, x - 1)
+                    >>= pushWeak stack (y + 1, x)
+                    >>= pushWeak stack (y + 1, x + 1)
 
-                    >>= fire
+                    >>= fire stack
 
-        {-# INLINE pseudoWrite #-}
-        pseudoWrite ix edge
+        {-# INLINE tryFire #-}
+        tryFire stack ix edge
             | edge /= strong = return ()
             | otherwise      = do
-                stackWrite 0 ix
+                stackWrite stack 0 ix
                 write edges ix noEdge
-                fire 1
+                fire stack 1
 
-    time "wildfire" (ext `minus` (2, 2)) $
-        S.unrolledFill
-            n4 noTouch
-            (index edges) pseudoWrite
-            (1, 1) (ext `minus` (1, 1))
-
-    touchArray edges
+    lastStack <-
+        time "wildfire" (ext `minus` (2, 2)) $
+            rangeWorkP caps (imutate (S.unrolledFill n4 noTouch) tryFire)
+                       newStack finalizeStacks edges
+                       (1, 1) (ext `minus` (1, 1))
+    touchArray lastStack
     touchArray target
-    touchArray stack

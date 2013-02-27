@@ -88,7 +88,7 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
 
     -- | Standard left fold wothout unrolling.
     --
-    -- | This one and 5 following functions shouldn't be called directly,
+    -- This one and 5 following functions shouldn't be called directly,
     -- they are intented to be passed as first argument
     -- to 'Data.Yarr.Eval.Load' and functions from
     -- "Data.Yarr.Work" module.
@@ -380,14 +380,14 @@ instance BlockShape Dim2 where
 --
 -- Example:
 --
--- @blurred <- 'Data.Yarr.Eval.compute' ('Data.Yarr.Eval.loadP' (dim2BlockFill 'n1' 'n4' 'touch')) delayedBlurred@
+-- @blurred <- 'Data.Yarr.Eval.compute' ('Data.Yarr.Eval.loadS' (dim2BlockFill 'n1' 'n4' 'touch')) delayedBlurred@
 dim2BlockFill
     :: forall a bsx bsy. (Arity bsx, Arity bsy)
     => bsx                  -- ^ Block size by x. Use 'n1' - 'n8' values.
     -> bsy                  -- ^ Block size by y
     -> (a -> IO ())         -- ^ 'touch' or 'noTouch'
     -> Fill Dim2 a          -- ^ Result curried function
-                            --   to pass to loading functions.
+                            --   to be passed to loading functions.
 {-# INLINE dim2BlockFill #-}
 dim2BlockFill blockSizeX blockSizeY tch =
     \get write ->
