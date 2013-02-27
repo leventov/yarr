@@ -56,14 +56,15 @@ foldl#
 {-# INLINE foldl# #-}
 foldl# reduce mz get start# end# =
     let {-# INLINE go# #-}
-        go# i# b
+        go# !b i#
             | i# >=# end# = return b
             | otherwise   = do
                 let i = (I# i#)
                 a <- get i
                 b' <- reduce b i a
-                go# (i# +# 1#) b'
-    in mz >>= go# start#
+                go# b' (i# +# 1#)
+    in do z <- mz
+          go# z start#
 
 unrolledFoldl#
     :: forall a b uf. Arity uf
@@ -79,8 +80,8 @@ unrolledFoldl# unrollFactor tch reduce mz get start# end# =
     let !(I# uf#) = arity unrollFactor
         lim# = end# -# uf#
         {-# INLINE go# #-}
-        go# i# b
-            | i# ># lim# = rest# i# b
+        go# !b i#
+            | i# ># lim# = rest# b i#
             | otherwise  = do
                 let is :: VecList uf Int
                     is = V.generate (+ (I# i#))
@@ -89,19 +90,20 @@ unrolledFoldl# unrollFactor tch reduce mz get start# end# =
                 b' <- V.foldM
                         (\b (i, a) -> reduce b i a) b
                         (V.zipWith (,) is as)
-                go# (i# +# uf#) b'
+                go# b' (i# +# uf#)
 
         {-# INLINE rest# #-}
-        rest# i# b
+        rest# !b i#
             | i# >=# end# = return b
             | otherwise   = do
                 let i = (I# i#)
                 a <- get i
                 tch a
                 b' <- reduce b i a
-                rest# (i# +# 1#) b'
+                rest# b' (i# +# 1#)
 
-    in mz >>= go# start#
+    in do z <- mz
+          go# z start#
 
 
 foldr#
@@ -113,14 +115,15 @@ foldr#
 {-# INLINE foldr# #-}
 foldr# reduce mz get start# end# =
     let {-# INLINE go# #-}
-        go# i# b
+        go# !b i#
             | i# <# start# = return b
             | otherwise    = do
                 let i = (I# i#)
                 a <- get i
                 b' <- reduce i a b
-                go# (i# -# 1#) b'
-    in mz >>= go# (end# -# 1#)
+                go# b' (i# -# 1#)
+    in do z <- mz
+          go# z (end# -# 1#)
 
 unrolledFoldr#
     :: forall a b uf. Arity uf
@@ -136,8 +139,8 @@ unrolledFoldr# unrollFactor tch reduce mz get start# end# =
     let !(I# uf#) = arity unrollFactor
         lim# = start# +# uf# -# 1#
         {-# INLINE go# #-}
-        go# i# b
-            | i# <# lim# = rest# i# b
+        go# !b i#
+            | i# <# lim# = rest# b i#
             | otherwise  = do
                 let is :: VecList uf Int
                     is = V.generate ((I# i#) -)
@@ -146,17 +149,18 @@ unrolledFoldr# unrollFactor tch reduce mz get start# end# =
                 b' <- V.foldM
                         (\b (i, a) -> reduce i a b) b
                         (V.zipWith (,) is as)
-                go# (i# -# uf#) b'
+                go# b' (i# -# uf#)
 
         {-# INLINE rest# #-}
-        rest# i# b
+        rest# !b i#
             | i# <# start# = return b
             | otherwise    = do
                 let i = (I# i#)
                 a <- get i
                 tch a
                 b' <- reduce i a b
-                rest# (i# -# 1#) b'
+                rest# b' (i# -# 1#)
 
-    in mz >>= go# (end# -# 1#)
+    in do z <- mz
+          go# z (end# -# 1#)
 

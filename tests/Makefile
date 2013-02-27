@@ -21,24 +21,18 @@ canny: canny.hs
 ub: blur-unroll-bench.hs
 	ghc --make $(YARR_FLAGS) $(DDUMP_CORE) -o ub blur-unroll-bench.hs > ub-core.hs
 
-repa-canny: repa-canny.hs
-	ghc --make $(REPA_FLAGS) -o repa-canny repa-canny.hs
+repa-canny: canny-repa.hs
+	ghc --make $(REPA_FLAGS) -o repa-canny canny-repa.hs
 
 cv-canny: canny-opencv.cpp
 	g++ -o cv-canny canny-opencv.cpp $(OPENCV_FLAGS)
 
-le: lum-equalization.hs
-	ghc --make $(YARR_FLAGS) $(DDUMP_CORE) -o le lum-equalization.hs > le-core.hs
+le: lightness-equalization.hs
+	ghc --make $(YARR_FLAGS) $(DDUMP_CORE) -o le lightness-equalization.hs > le-core.hs
 
 %.as: %
 	objdump -d $< > $@
 
-%.o: %.hs
-	ghc $(GHC_FLAGS) $<
-
-%.o: %.c
-	gcc -c $(GCC_FLAGS) $<
-
 clean:
-	rm *.o *.hi t-* ct blur canny ub repa-canny le
+	rm *.o *.hi t-* ct blur canny ub repa-canny cv-canny le 2> /dev/null
     

@@ -5,7 +5,7 @@ import Data.Word
 import System.Environment
 
 import Data.Yarr
-import Data.Yarr.Fold as F
+import Data.Yarr.Work
 import Data.Yarr.Shape as S
 import Data.Yarr.Repr.Foreign
 import Data.Yarr.IO.Image
@@ -72,27 +72,23 @@ main = do
 
 
 
-    let lum = (slices hslImage) V.! 2
+    let lightness = (slices hslImage) V.! 2
 
         emptyHist :: IO (UArray F L Dim1 Int)
         emptyHist = newEmpty 256
 
-
-        incHist hist i = do
+        incHist hist light = do
+            let i = truncate (light * 255)
             v <- index hist i
             write hist i (v + 1)
-            return hist
 
-        joinHist h1 h2 = do
+        joinHists h1 h2 = do
             loadS (S.unrolledFill n4 noTouch) (dzip2 (+) h1 h2) h1
             return h1
 
-        accHist hist l = incHist hist (truncate (l * 255))
-
-    hist <- time "lum hist fold" ext $
-        runFoldP caps
-                 (reduceLeftM (S.unrolledFoldl n4 noTouch) accHist)
-                 (emptyHist) joinHist lum
+    hist <- time "lightness hist fold" ext $
+        workP caps (mutate (S.unrolledFill n4 noTouch) incHist)
+                   (emptyHist) joinHists lightness
 
     let cdf = hist
         acc c i v = do
@@ -100,7 +96,7 @@ main = do
             write cdf i nc
             return nc
     time "hist to cdf fold" (256 :: Int) $
-        runIFold (S.unrolledFoldl n2 noTouch acc) (return 0) hist
+        iwork (S.unrolledFoldl n2 noTouch acc) (return 0) hist
 
     minCdf <- index cdf 0
     let sz = size ext
@@ -109,8 +105,8 @@ main = do
             c <- index cdf (truncate (l * 255))
             return $ (fromIntegral (c - minCdf)) / d
 
-    time "lum equalization" ext $
-        loadP S.fill caps (dmapM eq lum) lum
+    time "lightness equalization" ext $
+        loadP S.fill caps (dmapM eq lightness) lightness
 
     (equalized :: FImage (VecList N3 Word8)) <-
         time "float hsl to w8 rgb" ext $

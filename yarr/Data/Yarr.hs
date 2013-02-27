@@ -190,7 +190,7 @@ module Data.Yarr (
 
 import Data.Yarr.Base hiding (Fusion(..))
 import Data.Yarr.Eval
-import Data.Yarr.Flow
+import Data.Yarr.Flow hiding (D, delay, SE)
 import Data.Yarr.Shape
 import Data.Yarr.Repr.Foreign
 import Data.Yarr.Repr.Delayed

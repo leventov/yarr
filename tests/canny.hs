@@ -108,7 +108,7 @@ blur image target = do
         blurred = dmap norm convolvedY
 
     time "blur conv. by Y" (extent image) $
-        loadP (S.dim2BlockFill n1 n2 Pr.touch) caps blurred target
+        loadP (S.unrolledFill n6 Pr.touch) caps blurred target
 
 
 noOrient = 0 :: Word8

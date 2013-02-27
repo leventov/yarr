@@ -84,27 +84,32 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
     blockSize :: Block sh -> Int
     insideBlock :: Block sh -> sh -> Bool
 
-    -- | Following 6 functions shouldn't be called directly,
-    -- they are intented to be passed as first argument
-    -- to 'Data.Yarr.Eval.Load' and functions from
-    -- "Data.Yarr.Fold" module.
     makeChunkRange :: Int -> sh -> sh -> (Int -> Block sh)
 
+    -- | Standard left fold wothout unrolling.
+    --
+    -- | This one and 5 following functions shouldn't be called directly,
+    -- they are intented to be passed as first argument
+    -- to 'Data.Yarr.Eval.Load' and functions from
+    -- "Data.Yarr.Work" module.
     foldl :: Foldl sh a b
 
     unrolledFoldl
         :: forall a b uf. Arity uf
-        => uf                     -- ^ Unroll factor
-        -> (a -> IO ())           -- ^ 'touch' or 'noTouch'
-        -> Foldl sh a b
+        => uf           -- ^ Unroll factor
+        -> (a -> IO ()) -- ^ 'touch' or 'noTouch'
+        -> Foldl sh a b -- ^ Result curried function
+                        -- to be passed to working functions
 
+    -- | Standard right folding function without unrolling.
     foldr :: Foldr sh a b
 
     unrolledFoldr
         :: forall a b uf. Arity uf
-        => uf                     -- ^ Unroll factor
-        -> (a -> IO ())           -- ^ 'touch' or 'noTouch'
-        -> Foldr sh a b
+        => uf           -- ^ Unroll factor
+        -> (a -> IO ()) -- ^ 'touch' or 'noTouch'
+        -> Foldr sh a b -- ^ Result curried function
+                        -- to be passed to working functions
 
     -- | Standard fill without unrolling.
     -- To avoid premature optimization just type @fill@
@@ -114,10 +119,10 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
 
     unrolledFill
         :: forall a uf. Arity uf
-        => uf                 -- ^ Unroll factor
-        -> (a -> IO ())       -- ^ 'touch' or 'noTouch'
-        -> Fill sh a          -- ^ Result curried function
-                              --   to pass to loading functions.
+        => uf           -- ^ Unroll factor
+        -> (a -> IO ()) -- ^ 'touch' or 'noTouch'
+        -> Fill sh a    -- ^ Result curried function
+                        -- to by passed to loading functions
 
     {-# INLINE minus #-}
     {-# INLINE intersectBlocks #-}
@@ -370,7 +375,7 @@ instance BlockShape Dim2 where
 
     {-# INLINE clipBlock #-}
 
--- | 2D-unrolling to maximize profit from
+-- | 2D-unrolled filling to maximize profit from
 -- \"Global value numbering\" LLVM optimization.
 --
 -- Example:
