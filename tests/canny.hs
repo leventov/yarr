@@ -48,7 +48,7 @@ run repeats threshLow threshHigh imageFile = do
         dComputeS $
             mapElems fromIntegral $ readRGBVectors anyImage
 
-    edges <- new (extent image)
+    edges <- newEmpty (extent image)
     
     bench "Total" repeats (extent image) $
         process threshLow threshHigh image edges
@@ -124,57 +124,50 @@ strong = 255 :: Word8
 
 gradientMagOrient
     :: Word8 -> FImage Float -> FImage (VecTuple N2 Word8) -> IO ()
-gradientMagOrient !threshLow image target = do
-
-    let gradientX =
-            dConvolveLinearDim2WithStaticStencil
-                [dim2St| -1  0  1
-                         -2  0  2
-                         -1  0  1 |]
-                image
-
-        gradientY =
-            dConvolveLinearDim2WithStaticStencil
-                [dim2St|  1   2   1
-                          0   0   0
-                         -1  -2  -1 |]
-                image
-
-        magnitudeAndOrient :: Float -> Float -> VecTuple N2 Word8
-        {-# INLINE magnitudeAndOrient #-}
-        magnitudeAndOrient !gX !gY =
-            let mag = floatToWord8 $ sqrt (gX * gX + gY * gY)
-                orient =
-                    if mag < threshLow
-                        then noOrient
-                        else let !r = gY / gX
-                                 !((F# r#), (W# diagInv#)) =
-                                    if r < 0
-                                        then (P.negate r, 128)
-                                        else (r, 0)
-
-                                 br# = 0.596227# `timesFloat#` r#
-                                 num# = br# `plusFloat#` (r# `timesFloat#` r#)
-                                 atan_1q# =
-                                    num# `divideFloat#`
-                                    (1.0# `plusFloat#` br# `plusFloat#` num#)
-
-                             in if atan_1q# `leFloat#` 0.33#
-                                    then horiz
-                                    else if atan_1q# `geFloat#` 0.66#
-                                            then vert
-                                            else W8# (64## `plusWord#` diagInv#)
-            in VT_2 (mag, orient)
-
-        delayedMagOrient = dzip2 magnitudeAndOrient gradientX gradientY
-
+gradientMagOrient !threshLow image target =
     time "magOrient" (extent image) $
         loadP S.fill caps delayedMagOrient target
+  where
+    delayedMagOrient = dzip2 magnitudeAndOrient gradientX gradientY
+
+    gradientX =
+        dConvolveLinearDim2WithStaticStencil
+            [dim2St| -1  0  1
+                     -2  0  2
+                     -1  0  1 |]
+            image
+
+    gradientY =
+        dConvolveLinearDim2WithStaticStencil
+            [dim2St|  1   2   1
+                      0   0   0
+                     -1  -2  -1 |]
+            image
+
+    magnitudeAndOrient :: Float -> Float -> VecTuple N2 Word8
+    magnitudeAndOrient gX gY =
+        VT_2 (mag, if mag < threshLow then noOrient else orient gX gY)
+      where
+        mag = floatToWord8 $ sqrt (gX * gX + gY * gY)
+
+        orient :: Float -> Float -> Word8
+        orient gX gY
+            | atan_1q < 0.33 = horiz
+            | atan_1q > 0.66 = vert
+            | otherwise      = posDiag + diagInv
+          where
+            rr = gY / gX
+            (r, diagInv) =
+                if rr < 0 then (negate rr, negDiag - posDiag) else (rr, 0)
+            -- 2nd order Taylor series of atan,
+            -- see http://stackoverflow.com/a/14101194/648955
+            br = 0.596227 * r
+            num = br + (r * r)
+            atan_1q = num / (1.0 + br + num)
 
 
 supress :: Word8 -> FImage (VecTuple N2 Word8) -> IO (FImage Word8)
 supress !threshHigh magOrient = do
-
     let ext = extent magOrient
     supressed <- newEmpty ext
 
@@ -184,23 +177,17 @@ supress !threshHigh magOrient = do
         {-# INLINE isMax #-}
         isMax sh m m1 m2 = do
             mag1 <- m1
-            if m < mag1
-                then return ()
-                else do
-                    mag2 <- m2
-                    if m < mag2
-                        then return ()
-                        else do
-                            let e = if m < threshHigh
-                                        then weak
-                                        else strong
-                            write supressed sh e
+            when (m > mag1) $ do
+                mag2 <- m2
+                when (m > mag2) $ do
+                     let e = if m < threshHigh then weak else strong
+                     write supressed sh e
         
         {-# INLINE comparePts #-}
         comparePts sh@(y, x) (VT_2 (m, o))
             | o == noOrient= return ()
-            | o == horiz   = isMax sh m (mg (y, x - 1)) (mg (y, x + 1))
-            | o == vert    = isMax sh m (mg (y - 1, x)) (mg (y + 1, x))
+            | o == horiz   = isMax sh m (mg (y,     x - 1)) (mg (y,     x + 1))
+            | o == vert    = isMax sh m (mg (y - 1, x    )) (mg (y + 1, x    ))
             | o == negDiag = isMax sh m (mg (y - 1, x - 1)) (mg (y + 1, x + 1))
             | o == posDiag = isMax sh m (mg (y - 1, x + 1)) (mg (y + 1, x - 1))
             | otherwise    = return ()
@@ -216,20 +203,14 @@ supress !threshHigh magOrient = do
 
     time "supress" (ext `minus` (2, 2)) $
         supressLoad magOrient shapedSupressed
-
     return supressed
 
 
 wildfire :: FImage Word8 -> FImage Word8 -> IO ()
 wildfire edges target = do
-
     let ext@(h, w) = extent edges
-
-    let newStack :: IO (UArray F L Dim1 (VecTuple N2 Int16))
+        newStack :: IO (UArray F L Dim1 (VecTuple N2 Int16))
         newStack = new (h * w)
-
-        finalizeStacks s1 s2 =
-            touchArray s1 >> return s2
 
         {-# INLINE stackIndex #-}
         stackIndex stack i = do
@@ -281,8 +262,9 @@ wildfire edges target = do
 
     lastStack <-
         time "wildfire" (ext `minus` (2, 2)) $
-            rangeWorkP caps (imutate (S.unrolledFill n4 noTouch) tryFire)
-                       newStack finalizeStacks edges
-                       (1, 1) (ext `minus` (1, 1))
+            rangeWorkP caps
+                (imutate (S.unrolledFill n4 noTouch) tryFire)
+                newStack (\s1 s2 -> touchArray s1 >> return s2)
+                edges (1, 1) (ext `minus` (1, 1))
     touchArray lastStack
     touchArray target

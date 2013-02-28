@@ -106,11 +106,7 @@
            should be as as precise in types as possible.
            Don't neglect writing signatures for functions.
 
-        4. You shouldn't be very keen on bang patterns.
-           They are more likey to harm than improve performance.
-           However, in 95% of cases GHC ignores them.
-
-        5. Compilation flags:
+        4. Compilation flags:
            @-Odph -rtsopts -threaded -fno-liberate-case -funbox-strict-fields@
            @-fexpose-all-unfoldings -funfolding-keeness-factor1000@
            @-fsimpl-tick-factor=500 -fllvm -optlo-O3@.

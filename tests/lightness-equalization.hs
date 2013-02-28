@@ -13,6 +13,48 @@ import Data.Yarr.Utils.FixedVector as V
 import Data.Yarr.Utils.Primitive
 import Data.Yarr.Benchmarking
 
+
+type FImage = UArray F L Dim2
+type FSImage = UArray FS L Dim2
+
+main = do
+    [imageFile] <- getArgs
+    anyImage <- readImage imageFile
+
+    let image = readRGBVectors anyImage
+        ext = extent image
+    
+    (hslImage :: FImage (VecTuple N3 Float)) <-
+        time "w8 rgb to float hsl" ext $
+            dComputeP $
+                dmap (rgb2hsl . V.map normalizeByte) image
+
+    let lightness = (slices hslImage) V.! 2
+
+    hist <- time "lightness hist fold" ext (computeHist lightness)
+
+    cdf <- time "hist to cdf fold" (256 :: Int) (cumulateHist hist)
+
+    time "lightness equalization" ext (equalizeInPlace cdf lightness)
+    
+    (equalized :: FImage (VecList N3 Word8)) <-
+        time "float hsl to w8 rgb" ext $
+            dComputeP $
+                dmap (convert . V.map normalizedToByte . hsl2rgb)
+                     hslImage
+
+    writeImage ("t-eq-" ++ imageFile) (RGB equalized)
+
+
+normalizeByte :: Word8 -> Float
+{-# INLINE normalizeByte #-}
+normalizeByte w8 = (fromIntegral w8) / 255
+
+normalizedToByte :: Float -> Word8
+{-# INLINE normalizedToByte #-}
+normalizedToByte f = fromIntegral (truncate (f * 255) :: Int)
+
+
 rgb2hsl :: VecTuple N3 Float -> VecTuple N3 Float
 {-# INLINE rgb2hsl #-}
 rgb2hsl rgb@(VT_3 (r, g, b))
@@ -31,7 +73,6 @@ rgb2hsl rgb@(VT_3 (r, g, b))
            | otherwise = (1/6) * (r - g) / d + 2/3
         h = if h0 < 0 then h0 + 1.0 else h0
 
-
 hsl2rgb :: VecTuple N3 Float -> VecTuple N3 Float
 {-# INLINE hsl2rgb #-}
 hsl2rgb (VT_3 (h, s, l)) = V.map (comp . mod1) (VT_3 (h + 1/3, h, h - 1/3))
@@ -48,72 +89,41 @@ hsl2rgb (VT_3 (h, s, l)) = V.map (comp . mod1) (VT_3 (h + 1/3, h, h - 1/3))
                | t < 2/3   = p + ((q - p) * 6 * (2/3 - t))
                | otherwise = p
 
-type FImage = UArray F L Dim2
 
-normalizeByte :: Word8 -> Float
-{-# INLINE normalizeByte #-}
-normalizeByte w8 = (fromIntegral w8) / 255
+computeHist :: FSImage Float -> IO (UArray F L Dim1 Int)
+computeHist pixelValues =
+    workP caps (mutate (S.unrolledFill n4 noTouch) incHist)
+               (newEmpty 256) joinHists pixelValues
+  where
+    incHist :: UArray F L Dim1 Int -> Float -> IO ()
+    incHist hist value = do
+        let level = truncate (value * 255.99)
+        c <- index hist level
+        write hist level (c + 1)
 
-normalizedToByte :: Float -> Word8
-{-# INLINE normalizedToByte #-}
-normalizedToByte f = fromIntegral (truncate (f * 255) :: Int)
+    joinHists h1 h2 = do
+        loadS S.fill (dzip2 (+) h1 h2) h1
+        return h1
 
-main = do
-    [imageFile] <- getArgs
-    anyImage <- readImage imageFile
 
-    let image = readRGBVectors anyImage
-        ext = extent image
-    
-    (hslImage :: FImage (VecTuple N3 Float)) <-
-        time "w8 rgb to float hsl" ext $
-            dComputeP $
-                dmap (rgb2hsl . V.map normalizeByte) image
-
-    let lightness = (slices hslImage) V.! 2
-
-        emptyHist :: IO (UArray F L Dim1 Int)
-        emptyHist = newEmpty 256
-
-        incHist hist light = do
-            let i = truncate (light * 255)
-            v <- index hist i
-            write hist i (v + 1)
-
-        joinHists h1 h2 = do
-            loadS (S.unrolledFill n4 noTouch) (dzip2 (+) h1 h2) h1
-            return h1
-
-    hist <- time "lightness hist fold" ext $
-        workP caps (mutate (S.unrolledFill n4 noTouch) incHist)
-                   emptyHist joinHists lightness
-
-    let cdf = hist
-        acc c i v = do
+cumulateHist :: UArray F L Dim1 Int -> IO (UArray F L Dim1 Int)
+cumulateHist hist = do
+    cdf <- new (extent hist)
+    let acc c i v = do
             let nc = c + v
             write cdf i nc
             return nc
-    time "hist to cdf fold" (256 :: Int) $
-        iwork (S.unrolledFoldl n2 noTouch acc) (return 0) hist
+    iwork (S.foldl acc) (return 0) hist
+    touchArray cdf
+    return cdf
 
+equalizeInPlace :: UArray F L Dim1 Int -> FSImage Float -> IO ()
+equalizeInPlace cdf pixelValues = do
     minCdf <- index cdf 0
-    let sz = size ext
+    let sz = size (extent pixelValues)
         d = fromIntegral (sz - minCdf)
         eq l = do
             c <- index cdf (truncate (l * 255))
             return $ (fromIntegral (c - minCdf)) / d
-
-    time "lightness equalization" ext $
-        loadP S.fill caps (dmapM eq lightness) lightness
+    loadP S.fill caps (dmapM eq pixelValues) pixelValues
     touchArray cdf
-
-    (equalized :: FImage (VecList N3 Word8)) <-
-        time "float hsl to w8 rgb" ext $
-            dComputeP $
-                dmap (convert . V.map normalizedToByte . hsl2rgb)
-                     hslImage
-
-    writeImage ("t-eq-" ++ imageFile) (RGB equalized)
-
-
-
