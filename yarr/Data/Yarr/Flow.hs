@@ -2,7 +2,7 @@
 -- | Dataflow (fusion operations)
 module Data.Yarr.Flow (
     -- * Basic fusion
-    DefaultFusion(..),
+    DefaultFusion(..), DefaultIFusion(..),
 
     -- ** 'D'elayed flow and zipping shortcuts
     dzipWith, dzipWith3, D, delay,
@@ -17,6 +17,7 @@ module Data.Yarr.Flow (
 ) where
 
 import Data.Yarr.Base
+import Data.Yarr.Fusion
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
 import Data.Yarr.Utils.FixedVector as V
@@ -50,7 +51,7 @@ traverse transformShape newElem arr =
 -- @let φs = zipElems ('flip' 'atan2') coords@
 zipElems
     :: (Vector v a,
-        USource r l sh (v a), USource fr l sh b, DefaultFusion r fr l)
+        USource r l sh (v a), USource fr l sh b, DefaultFusion r fr l sh)
     => Fn (Dim v) a b      -- ^ Unwrapped @n@-ary zipper function
     -> UArray r l sh (v a) -- ^ Source array of vectors
     -> UArray fr l sh b    -- ^ Result array
@@ -69,7 +70,7 @@ zipElems fn arr = dmap (\v -> inspect v (Fun fn)) arr
 -- @
 mapElems
     :: (VecRegular r slr l sh v a, USource slr l sh a,
-        USource fslr l sh b, DefaultFusion slr fslr l, Vector v b)
+        USource fslr l sh b, DefaultFusion slr fslr l sh, Vector v b)
     => (a -> b)                     -- ^ Mapper function for all elements
     -> UArray r l sh (v a)          -- ^ Source array of vectors
     -> UArray (SE fslr) l sh (v b)  -- ^ Fused array of vectors
@@ -84,7 +85,7 @@ mapElems f = dmapElems (V.replicate f)
 -- @let domained = mapElemsM ('Data.Yarr.Utils.Primitive.clampM' 0.0 1.0) floatImage@
 mapElemsM
     :: (VecRegular r slr l sh v a, USource slr l sh a,
-        USource fslr l sh b, DefaultFusion slr fslr l, Vector v b)
+        USource fslr l sh b, DefaultFusion slr fslr l sh, Vector v b)
     => (a -> IO b)                 -- ^ Monadic mapper for all vector elements
     -> UArray r l sh (v a)         -- ^ Source array of vectors
     -> UArray (SE fslr) l sh (v b) -- ^ Fused array of vectors
@@ -102,9 +103,9 @@ mapElemsM f = dmapElemsM (V.replicate f)
 -- Implemented by means of 'delay' function (source arrays are simply
 -- delayed before zipping).
 dzipWith
-    :: (USource r1 l sh a, DefaultFusion r1 D l, USource D l sh a,
-        USource r2 l sh b, DefaultFusion r2 D l, USource D l sh b,
-        USource D l sh c, DefaultFusion D D l)
+    :: (USource r1 l sh a, DefaultFusion r1 D l sh, USource D l sh a,
+        USource r2 l sh b, DefaultFusion r2 D l sh, USource D l sh b,
+        USource D l sh c, DefaultFusion D D l sh)
     => (a -> b -> c)    -- ^ Pure zipping function
     -> UArray r1 l sh a -- ^ 1st source array
     -> UArray r2 l sh b -- ^ 2nd source array
@@ -115,10 +116,10 @@ dzipWith f arr1 arr2 = dzip2 f (delay arr1) (delay arr2)
 -- | /O(1)/ Generalized zipping of 3 arrays, which shouldn't be
 -- of the same representation type.
 dzipWith3
-    :: (USource r1 l sh a, DefaultFusion r1 D l, USource D l sh a,
-        USource r2 l sh b, DefaultFusion r2 D l, USource D l sh b,
-        USource r3 l sh c, DefaultFusion r3 D l, USource D l sh c,
-        USource D l sh d, DefaultFusion D D l)
+    :: (USource r1 l sh a, DefaultFusion r1 D l sh, USource D l sh a,
+        USource r2 l sh b, DefaultFusion r2 D l sh, USource D l sh b,
+        USource r3 l sh c, DefaultFusion r3 D l sh, USource D l sh c,
+        USource D l sh d, DefaultFusion D D l sh)
     => (a -> b -> c -> d) -- ^ Pure zipping function
     -> UArray r1 l sh a   -- ^ 1st source array
     -> UArray r2 l sh b   -- ^ 2nd source array

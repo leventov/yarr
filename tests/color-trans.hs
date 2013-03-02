@@ -42,7 +42,6 @@ main = do
 
     writeImage ("t-contrasted-" ++ imageFile) (RGB contrasted)
 
-
     -- Unfortunately, without this ↘ signature GHC doesn't inline the function
     let luminosity r g b = (0.21 :: Float) * r + 0.71 * g + 0.07 * b
         delayedLum = dmap normalizedToByte $ zipElems luminosity floatRGBImage

@@ -5,12 +5,11 @@ import Data.Word
 import System.Environment
 
 import Data.Yarr
-import Data.Yarr.Work
+import Data.Yarr.Walk
 import Data.Yarr.Shape as S
 import Data.Yarr.Repr.Foreign
 import Data.Yarr.IO.Image
 import Data.Yarr.Utils.FixedVector as V
-import Data.Yarr.Utils.Primitive
 import Data.Yarr.Benchmarking
 
 
@@ -31,9 +30,10 @@ main = do
 
     let lightness = (slices hslImage) V.! 2
 
+    benchMin "lhf" 100 ext (computeHist lightness >> return ())
     hist <- time "lightness hist fold" ext (computeHist lightness)
 
-    cdf <- time "hist to cdf fold" (256 :: Int) (cumulateHist hist)
+    cdf <- cumulateHist hist
 
     time "lightness equalization" ext (equalizeInPlace cdf lightness)
     
@@ -92,7 +92,7 @@ hsl2rgb (VT_3 (h, s, l)) = V.map (comp . mod1) (VT_3 (h + 1/3, h, h - 1/3))
 
 computeHist :: FSImage Float -> IO (UArray F L Dim1 Int)
 computeHist pixelValues =
-    workP caps (mutate (S.unrolledFill n4 noTouch) incHist)
+    walkP caps (mutate (S.unrolledFill n8 noTouch) incHist)
                (newEmpty 256) joinHists pixelValues
   where
     incHist :: UArray F L Dim1 Int -> Float -> IO ()
@@ -113,7 +113,7 @@ cumulateHist hist = do
             let nc = c + v
             write cdf i nc
             return nc
-    iwork (S.foldl acc) (return 0) hist
+    iwalk (S.foldl acc) (return 0) hist
     touchArray cdf
     return cdf
 

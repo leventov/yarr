@@ -126,7 +126,10 @@
         * @d-@ prefix stands for \"default\". Typically function
           with @d-@ prefix is carried version of the one without prefix.
 
-        * @f-@ prefix means \"fused\". Used for functions from 'Data.Yarr.Base.Fusion' class.
+        * @I-@, @i-@ prefixes for \"indexed\". Functions with this prefix accept
+          array index before element itself.
+
+        * @f-@ prefix means \"fused\". Used for functions from 'Data.Yarr.Fusion.Fusion' class.
 
         * @-M@, as usual, is for monadic versions of functions.
           However, if there isn't non-monadic version

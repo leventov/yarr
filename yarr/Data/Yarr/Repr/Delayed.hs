@@ -19,7 +19,8 @@ module Data.Yarr.Repr.Delayed (
 import Prelude as P
 import Control.Monad
 
-import Data.Yarr.Base as B
+import Data.Yarr.Base
+import Data.Yarr.Fusion as F
 import Data.Yarr.Eval
 import Data.Yarr.Shape
 import Data.Yarr.Utils.FixedVector as V
@@ -68,7 +69,7 @@ instance (Shape sh, Vector v e) => VecRegular D D L sh v e where
 
 instance (Shape sh, Vector v e) => UVecSource D D L sh v e
 
-instance Fusion r D L where
+instance Fusion r D L sh where
     fmapM f arr =
         LinearDelayed
             (extent arr) (touchArray arr) (force arr) (f <=< linearIndex arr)
@@ -124,7 +125,7 @@ instance Fusion r D L where
     {-# INLINE fzip3M #-}
     {-# INLINE fzipM #-}
 
-instance DefaultFusion D D L
+instance DefaultFusion D D L sh
 
 
 
@@ -163,12 +164,13 @@ instance (Shape sh, Vector v e) => VecRegular D D SH sh v e where
 
 instance (Shape sh, Vector v e) => UVecSource D D SH sh v e
 
-instance Fusion r D SH where
-    fmapM f arr =
+instance Shape sh => IFusion r l D SH sh where
+    fimapM f arr =
         ShapeDelayed
-            (extent arr) (touchArray arr) (force arr) (f <=< index arr)
+            (extent arr) (touchArray arr) (force arr)
+            (\sh -> index arr sh >>= f sh)
 
-    fzip2M f arr1 arr2 =
+    fizip2M f arr1 arr2 =
         let sh = intersect (vl_2 (extent arr1) (extent arr2))
             tch = touchArray arr1 >> touchArray arr2
             iforce = force arr1 >> force arr2
@@ -177,11 +179,11 @@ instance Fusion r D SH where
             get sh = do
                 v1 <- index arr1 sh
                 v2 <- index arr2 sh
-                f v1 v2
+                f sh v1 v2
 
         in ShapeDelayed sh tch iforce get
 
-    fzip3M f arr1 arr2 arr3 =
+    fizip3M f arr1 arr2 arr3 =
         let sh = intersect (vl_3 (extent arr1) (extent arr2) (extent arr3))
             tch = touchArray arr1 >> touchArray arr2 >> touchArray arr3
             iforce = force arr1 >> force arr2 >> force arr3
@@ -191,11 +193,11 @@ instance Fusion r D SH where
                 v1 <- index arr1 sh
                 v2 <- index arr2 sh
                 v3 <- index arr3 sh
-                f v1 v2 v3
+                f sh v1 v2 v3
 
         in ShapeDelayed sh tch iforce get
 
-    fzipM fun arrs =
+    fizipM ifun arrs =
         let shapes = V.map extent arrs
             sh = intersect shapes
 
@@ -207,22 +209,24 @@ instance Fusion r D SH where
             {-# INLINE get #-}
             get sh = do
                 v <- V.mapM ($ sh) gets
-                inspect v fun
+                inspect v (ifun sh)
 
         in ShapeDelayed sh tch iforce get
 
-    {-# INLINE fmapM #-}
-    {-# INLINE fzip2M #-}
-    {-# INLINE fzip3M #-}
-    {-# INLINE fzipM #-}
+    {-# INLINE fimapM #-}
+    {-# INLINE fizip2M #-}
+    {-# INLINE fizip3M #-}
+    {-# INLINE fizipM #-}
 
-instance DefaultFusion D D SH
+instance Shape sh => DefaultIFusion D L D SH sh
+instance Shape sh => DefaultIFusion D SH D SH sh
+instance Shape sh => DefaultFusion D D SH sh
 
 -- | Load type preserving wrapping arbirtary array into 'D'elayed representation.
-delay :: (USource r l sh a, USource D l sh a, Fusion r D l)
+delay :: (USource r l sh a, USource D l sh a, Fusion r D l sh)
       => UArray r l sh a -> UArray D l sh a
 {-# INLINE delay #-}
-delay = B.fmap id
+delay = F.fmap id
 
 -- | Wrap indexing function into delayed representation.
 -- 

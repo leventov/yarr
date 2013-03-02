@@ -22,18 +22,8 @@ time :: Shape sh
                --  it's execution time metrics.
 {-# NOINLINE time #-}
 time label range action = do
-    (res, (µss, tics)) <- timeIO action
-
-    let ms = (fromIntegral µss) / 1000
-
-        indices = fromIntegral (size range)
-        ticsPerIndex = (fromIntegral tics) / indices
-
-        format :: String
-        format =
-            printf "%%-16s %s ms, %s tics per index" (fmt ms) (fmt ticsPerIndex)
-
-    trace (printf format label ms ticsPerIndex)
+    (res, timings) <- timeIO action
+    traceResults label range timings
     return res
 
 -- | /Sequential/ splice-by-slice yarr loaing action modifier.
@@ -82,6 +72,32 @@ bench label repeats range action = do
         printf format
                label avMs devMs avTicsPerIndex devTicsPerIndex repeats
 
+benchMin
+    :: Shape sh
+    => String
+    -> Int
+    -> sh
+    -> IO ()
+    -> IO ()
+{-# NOINLINE benchMin #-}
+benchMin label repreats range action = do
+    minTimings <- benchMinIO repreats action
+    traceResults label range minTimings
+
+
+traceResults :: Shape sh => String -> sh -> (Integer, Integer) -> IO ()
+traceResults label range (µss, tics) =
+    trace (printf format label ms ticsPerIndex)
+  where
+    ms = (fromIntegral µss) / 1000
+
+    indices = fromIntegral (size range)
+    ticsPerIndex = (fromIntegral tics) / indices
+
+    format :: String
+    format = printf "%%-16s %s ms, %s tics per index" (fmt ms) (fmt ticsPerIndex)
+
+
 benchSlices
     :: (UVecSource r slr l sh v e, UVecTarget tr tslr tl sh v2 e,
         Dim v ~ Dim v2)
@@ -117,6 +133,12 @@ benchIO repeats action = do
         (avµs, devµs) = stat repeats µss
         (avTics, devTics) = stat repeats tics
     return $ BenchResults (avµs / 1000) (devµs / 1000) avTics devTics
+
+benchMinIO :: Int -> IO () -> IO (Integer, Integer)
+benchMinIO repeats action = do
+    results <- M.replicateM repeats (timeIO action)
+    let (_, sample) = P.unzip results
+    return $ P.minimum sample
 
 stat :: Integral a => Int -> [a] -> (Float, Float)
 stat repeats sample =

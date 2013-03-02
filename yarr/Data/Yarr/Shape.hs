@@ -12,6 +12,9 @@ module Data.Yarr.Shape (
 
     -- * Specialized flow
     dim2BlockFill,
+
+    -- * Touch functions
+    Touchable(..), noTouch,
 ) where
 
 import Prelude as P hiding (foldl, foldr)

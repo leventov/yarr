@@ -13,7 +13,8 @@ module Data.Yarr.Repr.Boxed (
 import Control.Monad.ST (RealWorld)
 import Data.Primitive.Array
 
-import Data.Yarr.Base hiding (fmap)
+import Data.Yarr.Base
+import Data.Yarr.Fusion hiding (fmap)
 import Data.Yarr.Shape
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
@@ -46,7 +47,8 @@ instance (Shape sh, NFData a) => USource B L sh a where
     linearIndex (Boxed _ arr) = indexArrayM arr
     {-# INLINE linearIndex #-}
 
-instance DefaultFusion B D L
+instance DefaultFusion B D L sh
+instance Shape sh => DefaultIFusion B L D SH sh
 
 instance (Shape sh, Vector v e, NFData e) => UVecSource (SE B) B L sh v e
 
@@ -70,7 +72,8 @@ instance (Shape sh, NFData a) => USource MB L sh a where
     linearIndex (MutableBoxed _ marr) = readArray marr
     {-# INLINE linearIndex #-}
 
-instance DefaultFusion MB D L
+instance DefaultFusion MB D L sh
+instance Shape sh => DefaultIFusion MB L D SH sh
 
 instance (Shape sh, Vector v e, NFData e) => UVecSource (SE MB) MB L sh v e
 

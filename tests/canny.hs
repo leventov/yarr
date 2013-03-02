@@ -15,14 +15,13 @@ import System.IO
 
 import Data.Yarr as Y
 import Data.Yarr.Shape as S
-import Data.Yarr.Work
+import Data.Yarr.Walk
 import Data.Yarr.Repr.Foreign
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Convolution as C
 import Data.Yarr.IO.Image
 import Data.Yarr.Benchmarking
 import Data.Yarr.Utils.FixedVector as V
-import Data.Yarr.Utils.Primitive as Pr
 
 
 type FImage = UArray F L Dim2
@@ -89,7 +88,7 @@ blur image target = do
 
     (cX :: FImage Word16) <- new (extent image)
     time "blur conv. by X" (extent image) $
-        loadP (S.unrolledFill n8 Pr.touch) caps
+        loadP (S.unrolledFill n8 touch) caps
               (dmap fromIntegral convolvedX) cX
 
     let convolvedY :: UArray CV CVL Dim2 Word
@@ -109,7 +108,7 @@ blur image target = do
         blurred = dmap norm convolvedY
 
     time "blur conv. by Y" (extent image) $
-        loadP (S.unrolledFill n6 Pr.touch) caps blurred target
+        loadP (S.unrolledFill n6 touch) caps blurred target
 
 
 noOrient = 0 :: Word8
@@ -198,7 +197,7 @@ supress !threshHigh magOrient = do
 
         {-# INLINE supressLoad #-}
         supressLoad arr tarr =
-            rangeLoadP (S.dim2BlockFill n3 n3 Pr.touch) caps arr tarr
+            rangeLoadP (S.dim2BlockFill n3 n3 touch) caps arr tarr
                        (1, 1) (ext `minus` (1, 1))
 
     time "supress" (ext `minus` (2, 2)) $
@@ -262,7 +261,7 @@ wildfire edges target = do
 
     lastStack <-
         time "wildfire" (ext `minus` (2, 2)) $
-            rangeWorkP caps
+            rangeWalkP caps
                 (imutate (S.unrolledFill n4 noTouch) tryFire)
                 newStack (\s1 s2 -> touchArray s1 >> return s2)
                 edges (1, 1) (ext `minus` (1, 1))

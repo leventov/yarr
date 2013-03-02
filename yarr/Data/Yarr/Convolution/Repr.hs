@@ -10,6 +10,7 @@ import Control.Monad
 
 import Data.Yarr.Base
 import Data.Yarr.Shape
+import Data.Yarr.Fusion
 import Data.Yarr.Repr.Delayed
 
 import Data.Yarr.Utils.FixedVector as V
@@ -43,6 +44,8 @@ data CV
 -- see <https://github.com/leventov/yarr/blob/master/tests/blur.hs>,
 -- @ffill@ function.
 data CVL
+
+instance Shape sh => PreferredWorkIndex CVL sh sh
 
 instance Shape sh => Regular CV CVL sh a where
 
@@ -93,11 +96,15 @@ instance Shape sh => USource CV CVL sh a where
     {-# INLINE index #-}
 
 
-instance Fusion CV CV CVL where
-    fmapM f (Convoluted sh tch iforce bget center cget) =
-        Convoluted sh tch iforce (f <=< bget) center (f <=< cget)
+instance Shape sh => IFusion CV CVL CV CVL sh where
+    fimapM f (Convoluted sh tch iforce bget center cget) =
+        Convoluted
+            sh tch iforce
+            (\sh -> bget sh >>= f sh)
+            center
+            (\sh -> cget sh >>= f sh)
 
-    fzip2M f arr1 arr2 =
+    fizip2M f arr1 arr2 =
         let sh = intersect (vl_2 (extent arr1) (extent arr2))
             ctr = intersectBlocks (vl_2 (center arr1) (center arr2))
             tch = touchArray arr1 >> touchArray arr2
@@ -107,17 +114,17 @@ instance Fusion CV CV CVL where
             bget sh = do
                 v1 <- borderGet arr1 sh
                 v2 <- borderGet arr2 sh
-                f v1 v2
+                f sh v1 v2
 
             {-# INLINE cget #-}
             cget sh = do
                 v1 <- centerGet arr1 sh
                 v2 <- centerGet arr2 sh
-                f v1 v2
+                f sh v1 v2
 
         in Convoluted sh tch iforce bget ctr cget
 
-    fzip3M f arr1 arr2 arr3 =
+    fizip3M f arr1 arr2 arr3 =
         let sh = intersect (vl_3 (extent arr1) (extent arr2) (extent arr3))
             ctr = intersectBlocks (vl_3 (center arr1) (center arr2) (center arr3))
             tch = touchArray arr1 >> touchArray arr2 >> touchArray arr3
@@ -128,18 +135,18 @@ instance Fusion CV CV CVL where
                 v1 <- borderGet arr1 sh
                 v2 <- borderGet arr2 sh
                 v3 <- borderGet arr3 sh
-                f v1 v2 v3
+                f sh v1 v2 v3
 
             {-# INLINE cget #-}
             cget sh = do
                 v1 <- centerGet arr1 sh
                 v2 <- centerGet arr2 sh
                 v3 <- centerGet arr3 sh
-                f v1 v2 v3
+                f sh v1 v2 v3
 
         in Convoluted sh tch iforce bget ctr cget
 
-    fzipM fun arrs =
+    fizipM ifun arrs =
         let sh = intersect $ V.map extent arrs
 
             ctr = intersectBlocks $ V.map center arrs
@@ -152,19 +159,20 @@ instance Fusion CV CV CVL where
             {-# INLINE bget #-}
             bget sh = do
                 v <- V.mapM ($ sh) bgets
-                inspect v fun
+                inspect v (ifun sh)
 
             cgets = V.map centerGet arrs
             {-# INLINE cget #-}
             cget sh = do
                 v <- V.mapM ($ sh) cgets
-                inspect v fun
+                inspect v (ifun sh)
 
         in Convoluted sh tch iforce bget ctr cget
 
-    {-# INLINE fmapM #-}
-    {-# INLINE fzip2M #-}
-    {-# INLINE fzip3M #-}
-    {-# INLINE fzipM #-}
+    {-# INLINE fimapM #-}
+    {-# INLINE fizip2M #-}
+    {-# INLINE fizip3M #-}
+    {-# INLINE fizipM #-}
 
-instance DefaultFusion CV CV CVL
+instance Shape sh => DefaultIFusion CV CVL CV CVL sh
+instance Shape sh => DefaultFusion CV CV CVL sh

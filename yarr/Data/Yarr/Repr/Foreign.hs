@@ -20,6 +20,7 @@ import Foreign.Marshal.Alloc
 import Foreign.Marshal.MissingAlloc
 
 import Data.Yarr.Base as B
+import Data.Yarr.Fusion
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
 import Data.Yarr.Shape
@@ -66,7 +67,8 @@ instance (Shape sh, Storable a) => USource F L sh a where
     linearIndex (ForeignArray _ _ ptr) i = peekElemOff ptr i
     {-# INLINE linearIndex #-}
 
-instance DefaultFusion F D L
+instance DefaultFusion F D L sh
+instance Shape sh => DefaultIFusion F L D SH sh
 
 -- | Foreign Slice representation, /view/ slice representation
 -- for 'F'oreign arrays.
@@ -120,7 +122,8 @@ instance (Shape sh, Storable e) => USource FS L sh e where
     linearIndex (ForeignSlice _ vsize _ ptr) i = peekByteOff ptr (i * vsize)
     {-# INLINE linearIndex #-}
 
-instance DefaultFusion FS D L
+instance DefaultFusion FS D L sh
+instance Shape sh => DefaultIFusion FS L D SH sh
 
 
 instance (Shape sh, Vector v e, Storable e) => VecRegular F FS L sh v e where

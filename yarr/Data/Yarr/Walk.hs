@@ -1,5 +1,5 @@
 
-module Data.Yarr.Work (
+module Data.Yarr.Walk (
     -- * Fold combinators
     -- | See source of these 4 functions
     -- to construct more similar ones,
@@ -7,7 +7,7 @@ module Data.Yarr.Work (
     reduceL, reduceLeftM,
     reduceR, reduceRightM,
 
-    -- * Combinators to work with mutable state
+    -- * Combinators to walk with mutable state
     -- | Added specially to improve performance
     -- of tasks like histogram filling.
     --
@@ -16,29 +16,29 @@ module Data.Yarr.Work (
     -- it's evaluation higher from folding routine.
     mutate, imutate,
 
-    -- * Work runners
-    work, iwork, rangeWork,
-    workP, iworkP, rangeWorkP,
-    workOnSlicesSeparate, iworkOnSlicesSeparate, rangeWorkOnSlicesSeparate,
-    workOnSlicesSeparateP, iworkOnSlicesSeparateP, rangeWorkOnSlicesSeparateP,
+    -- * Walk runners
+    walk, iwalk, rangeWalk,
+    walkP, iwalkP, rangeWalkP,
+    walkOnSlicesSeparate, iwalkOnSlicesSeparate, rangeWalkOnSlicesSeparate,
+    walkOnSlicesSeparateP, iwalkOnSlicesSeparateP, rangeWalkOnSlicesSeparateP,
 
-    -- * Aliases for work types
-    StatefulWork, Foldl, Foldr,
+    -- * Aliases for walk types
+    StatefulWalk, Foldl, Foldr,
 ) where
 
 import Data.Yarr.Base
 import Data.Yarr.Shape as S
 import Data.Yarr.Eval
 
-import Data.Yarr.Work.Internal
+import Data.Yarr.Walk.Internal
 
 
 -- | /O(0)/
 reduceLeftM
     :: Foldl i a b        -- ^ 'S.foldl' or curried 'S.unrolledFoldl'
     -> (b -> a -> IO b)   -- ^ Monadic left reduce
-    -> StatefulWork i a b -- ^ Result stateful work to be passed
-                          -- to work runners
+    -> StatefulWalk i a b -- ^ Result stateful walk to be passed
+                          -- to walk runners
 {-# INLINE reduceLeftM #-}
 reduceLeftM foldl rf = foldl (\b _ a -> rf b a)
 
@@ -46,8 +46,8 @@ reduceLeftM foldl rf = foldl (\b _ a -> rf b a)
 reduceL
     :: Foldl i a b        -- ^ 'S.foldl' or curried 'S.unrolledFoldl'
     -> (b -> a -> b)      -- ^ Pure left reduce
-    -> StatefulWork i a b -- ^ Result stateful work to be passed
-                          -- to work runners
+    -> StatefulWalk i a b -- ^ Result stateful walk to be passed
+                          -- to walk runners
 {-# INLINE reduceL #-}
 reduceL foldl rf = foldl (\b _ a -> return $ rf b a)
 
@@ -55,8 +55,8 @@ reduceL foldl rf = foldl (\b _ a -> return $ rf b a)
 reduceRightM
     :: Foldr i a b         -- ^ 'S.foldr' or curried 'S.unrolledFoldr'
     -> (a -> b -> IO b)    -- ^ Monadic right reduce
-    -> StatefulWork i a b  -- ^ Result stateful work to be passed
-                           -- to work runners
+    -> StatefulWalk i a b  -- ^ Result stateful walk to be passed
+                           -- to walk runners
 {-# INLINE reduceRightM #-}
 reduceRightM foldr rf = foldr (\_ a b -> rf a b)
 
@@ -64,8 +64,8 @@ reduceRightM foldr rf = foldr (\_ a b -> rf a b)
 reduceR
     :: Foldr i a b        -- ^ 'S.foldr' or curried 'S.unrolledFoldr'
     -> (a -> b -> b)      -- ^ Pure right reduce
-    -> StatefulWork i a b -- ^ Result stateful work to be passed
-                          -- to work runners
+    -> StatefulWalk i a b -- ^ Result stateful walk to be passed
+                          -- to walk runners
 {-# INLINE reduceR #-}
 reduceR foldr rf = foldr (\_ a b -> return $ rf a b)
 
@@ -77,8 +77,8 @@ mutate
                           -- 'S.dim2BlockFill' is also acceptable.
     -> (s -> a -> IO ())  -- ^ (state -> array element -> (state has changed))
                           -- -- State mutating function
-    -> StatefulWork i a s -- ^ Result stateful work to be passed
-                          -- to work runners
+    -> StatefulWalk i a s -- ^ Result stateful walk to be passed
+                          -- to walk runners
 {-# INLINE mutate #-}
 mutate fill mf = imutate fill (\s i -> mf s)
 
@@ -89,8 +89,8 @@ imutate
                               -- If mutating is associative,
                               -- 'S.dim2BlockFill' is also acceptable.
     -> (s -> i -> a -> IO ()) -- ^ Indexed state mutating function
-    -> StatefulWork i a s     -- ^ Result stateful work to be passed
-                              -- to work runners
+    -> StatefulWalk i a s     -- ^ Result stateful walk to be passed
+                              -- to walk runners
 {-# INLINE imutate #-}
 imutate fill imf ms index start end = do
     s <- ms
@@ -99,172 +99,176 @@ imutate fill imf ms index start end = do
 
 
 
--- | /O(n)/ Run non-indexed stateful work.
+-- | /O(n)/ Walk with state,
+-- with non-indexed function ('reduceL' group of fold combinators, 'mutate').
 --
 -- Example:
 --
--- @'Data.Yarr.IO.List.toList' = work ('reduceR' 'S.foldr' (:)) (return [])@
-work
+-- @'Data.Yarr.IO.List.toList' = walk ('reduceR' 'S.foldr' (:)) (return [])@
+walk
     :: (USource r l sh a, PreferredWorkIndex l sh i)
-    => StatefulWork i a s -- ^ Stateful working function
+    => StatefulWalk i a s -- ^ Stateful walking function
     -> IO s               -- ^ Monadic initial state (fold zero).
                           -- Wrap pure state in 'return'.
     -> UArray r l sh a    -- ^ Source array
     -> IO s               -- ^ Final state (fold result)
-{-# INLINE work #-}
-work = anyWork
+{-# INLINE walk #-}
+walk = anyWalk
 
--- | /O(n)/ Run indexed stateful work.
+-- | /O(n)/ Walk with state,
+-- with indexed function ('S.foldl', 'S.foldr', 'imutate', etc).
 --
 -- Example:
 --
--- @res \<- iwork ('S.foldl' (\\s i a -> ...)) foldZero sourceArray@
-iwork
+-- @res \<- iwalk ('S.foldl' (\\s i a -> ...)) foldZero sourceArray@
+iwalk
     :: USource r l sh a
-    => StatefulWork sh a s -- ^ Stateful working function
+    => StatefulWalk sh a s -- ^ Stateful walking function
     -> IO s                -- ^ Monadic initial state (fold zero).
                            -- Wrap pure state in 'return'.
     -> UArray r l sh a     -- ^ Source array
     -> IO s                -- ^ Final state (fold result)
-{-# INLINE iwork #-}
-iwork = anyWork
+{-# INLINE iwalk #-}
+iwalk = anyWalk
 
--- | /O(n)/ Run stateful work in specified range of indices.
-rangeWork
+-- | /O(n)/ Walk with state, in specified range of indices.
+rangeWalk
     :: USource r l sh a
-    => StatefulWork sh a s -- ^ Stateful working function
+    => StatefulWalk sh a s -- ^ Stateful walking function
     -> IO s                -- ^ Monadic initial state (fold zero).
                            -- Wrap pure state in 'return'.
     -> UArray r l sh a     -- ^ Source array
     -> sh                  -- ^ Top-left
-    -> sh                  -- ^ and bottom-right corners of range to work in
+    -> sh                  -- ^ and bottom-right corners of range to walk in
     -> IO s                -- ^ Final state (fold result)
-{-# INLINE rangeWork #-}
-rangeWork = anyRangeWork
+{-# INLINE rangeWalk #-}
+rangeWalk = anyRangeWalk
 
 
--- | /O(n)/ Run associative non-indexed stateful work in parallel.
+-- | /O(n)/ Run associative non-indexed stateful walk, in parallel.
 --
 -- Example -- associative image histogram filling in the test:
 -- <https://github.com/leventov/yarr/blob/master/tests/lum-equalization.hs>
-workP
+walkP
     :: (USource r l sh a, PreferredWorkIndex l sh i)
-    => Threads            -- ^ Number of threads to parallelize work on
-    -> StatefulWork i a s -- ^ Associative stateful working function
+    => Threads            -- ^ Number of threads to parallelize walk on
+    -> StatefulWalk i a s -- ^ Associative stateful walking function
     -> IO s               -- ^ Monadic zero state.
                           -- Wrap pure state in 'return'.
     -> (s -> s -> IO s)   -- ^ Associative monadic state joining function
     -> UArray r l sh a    -- ^ Source array
     -> IO s               -- ^ Gathered state (fold result)
-{-# INLINE workP #-}
-workP = anyWorkP
+{-# INLINE walkP #-}
+walkP = anyWalkP
 
--- | /O(n)/ Run associative indexed stateful work in parallel.
-iworkP
+-- | /O(n)/ Run associative indexed stateful walk, in parallel.
+iwalkP
     :: USource r l sh a
-    => Threads             -- ^ Number of threads to parallelize work on
-    -> StatefulWork sh a s -- ^ Associative stateful working function
+    => Threads             -- ^ Number of threads to parallelize walk on
+    -> StatefulWalk sh a s -- ^ Associative stateful walking function
     -> IO s                -- ^ Monadic zero state.
                            -- Wrap pure state in 'return'.
     -> (s -> s -> IO s)    -- ^ Associative monadic state joining function
     -> UArray r l sh a     -- ^ Source array
     -> IO s                -- ^ Gathered state (fold result)
-{-# INLINE iworkP #-}
-iworkP = anyWorkP
+{-# INLINE iwalkP #-}
+iwalkP = anyWalkP
 
--- | /O(n)/ Run associative stateful work in specified range in parallel.
-rangeWorkP
+-- | /O(n)/ Run associative stateful walk in specified range, in parallel.
+rangeWalkP
     :: USource r l sh a
-    => Threads             -- ^ Number of threads to parallelize work on
-    -> StatefulWork sh a s -- ^ Associative stateful working function
+    => Threads             -- ^ Number of threads to parallelize walk on
+    -> StatefulWalk sh a s -- ^ Associative stateful walking function
     -> IO s                -- ^ Monadic zero state.
                            -- Wrap pure state in 'return'.
     -> (s -> s -> IO s)    -- ^ Associative monadic state joining function
     -> UArray r l sh a     -- ^ Source array
     -> sh                  -- ^ Top-left
-    -> sh                  -- ^ and bottom-right corners of range to work in
+    -> sh                  -- ^ and bottom-right corners of range to walk in
     -> IO s                -- ^ Gathered state (fold result)
-{-# INLINE rangeWorkP #-}
-rangeWorkP = anyRangeWorkP
+{-# INLINE rangeWalkP #-}
+rangeWalkP = anyRangeWalkP
 
 
--- | /O(n)/ Run non-indexed stateful work over each slice of array of vectors.
-workOnSlicesSeparate
-    :: (UVecSource r slr l sh v e, PreferredWorkIndex l sh i)
-    => StatefulWork i e s     -- ^ Stateful slice-wise working function
-    -> IO s                   -- ^ Monadic initial state (fold zero).
-                              -- Wrap pure state in 'return'.
-    -> UArray r l sh (v e)    -- ^ Source array of vectors
-    -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
-{-# INLINE workOnSlicesSeparate #-}
-workOnSlicesSeparate = anyWorkOnSlicesSeparate
-
--- | /O(n)/ Run indexed stateful work over each slice of array of vectors.
-iworkOnSlicesSeparate
-    :: UVecSource r slr l sh v e
-    => StatefulWork sh e s    -- ^ Stateful slice-wise working function
-    -> IO s                   -- ^ Monadic initial state (fold zero).
-                              -- Wrap pure state in 'return'.
-    -> UArray r l sh (v e)    -- ^ Source array of vectors
-    -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
-{-# INLINE iworkOnSlicesSeparate #-}
-iworkOnSlicesSeparate = anyWorkOnSlicesSeparate
-
--- | /O(n)/ Run stateful work in specified range
+-- | /O(n)/ Walk with state, with non-indexed function,
 -- over each slice of array of vectors.
-rangeWorkOnSlicesSeparate
+walkOnSlicesSeparate
+    :: (UVecSource r slr l sh v e, PreferredWorkIndex l sh i)
+    => StatefulWalk i e s     -- ^ Stateful slice-wise walking function
+    -> IO s                   -- ^ Monadic initial state (fold zero).
+                              -- Wrap pure state in 'return'.
+    -> UArray r l sh (v e)    -- ^ Source array of vectors
+    -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
+{-# INLINE walkOnSlicesSeparate #-}
+walkOnSlicesSeparate = anyWalkOnSlicesSeparate
+
+-- | /O(n)/ Walk with state, with indexed function,
+-- over each slice of array of vectors.
+iwalkOnSlicesSeparate
     :: UVecSource r slr l sh v e
-    => StatefulWork sh e s    -- ^ Stateful slice-wise working function
+    => StatefulWalk sh e s    -- ^ Stateful slice-wise walking function
+    -> IO s                   -- ^ Monadic initial state (fold zero).
+                              -- Wrap pure state in 'return'.
+    -> UArray r l sh (v e)    -- ^ Source array of vectors
+    -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
+{-# INLINE iwalkOnSlicesSeparate #-}
+iwalkOnSlicesSeparate = anyWalkOnSlicesSeparate
+
+-- | /O(n)/ Walk with state, in specified range of indices,
+-- over each slice of array of vectors.
+rangeWalkOnSlicesSeparate
+    :: UVecSource r slr l sh v e
+    => StatefulWalk sh e s    -- ^ Stateful slice-wise walking function
     -> IO s                   -- ^ Monadic initial state (fold zero).
                               -- Wrap pure state in 'return'.
     -> UArray r l sh (v e)    -- ^ Source array of vectors
     -> sh                     -- ^ Top-left
-    -> sh                     -- ^ and bottom-right corners of range to work in
+    -> sh                     -- ^ and bottom-right corners of range to walk in
     -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
-{-# INLINE rangeWorkOnSlicesSeparate #-}
-rangeWorkOnSlicesSeparate = anyRangeWorkOnSlicesSeparate
+{-# INLINE rangeWalkOnSlicesSeparate #-}
+rangeWalkOnSlicesSeparate = anyRangeWalkOnSlicesSeparate
 
 
--- | /O(n)/ Run associative non-indexed stateful work
--- over slices of array of vectors in parallel.
-workOnSlicesSeparateP
+-- | /O(n)/ Run associative non-indexed stateful walk
+-- over slices of array of vectors, in parallel.
+walkOnSlicesSeparateP
     :: (UVecSource r slr l sh v e, PreferredWorkIndex l sh i)
-    => Threads                -- ^ Number of threads to parallelize work on
-    -> StatefulWork i e s     -- ^ Stateful slice-wise working function
+    => Threads                -- ^ Number of threads to parallelize walk on
+    -> StatefulWalk i e s     -- ^ Stateful slice-wise walking function
     -> IO s                   -- ^ Monadic zero state.
                               -- Wrap pure state in 'return'.
     -> (s -> s -> IO s)       -- ^ Associative monadic state joining function
     -> UArray r l sh (v e)    -- ^ Source array of vectors
     -> IO (VecList (Dim v) s) -- ^ Vector of gathered per slice results
-{-# INLINE workOnSlicesSeparateP #-}
-workOnSlicesSeparateP = anyWorkOnSlicesSeparateP
+{-# INLINE walkOnSlicesSeparateP #-}
+walkOnSlicesSeparateP = anyWalkOnSlicesSeparateP
 
--- | /O(n)/ Run associative indexed stateful work
--- over slices of array of vectors in parallel.
-iworkOnSlicesSeparateP
+-- | /O(n)/ Run associative indexed stateful walk
+-- over slices of array of vectors, in parallel.
+iwalkOnSlicesSeparateP
     :: UVecSource r slr l sh v e
-    => Threads                -- ^ Number of threads to parallelize work on
-    -> StatefulWork sh e s    -- ^ Stateful slice-wise working function
+    => Threads                -- ^ Number of threads to parallelize walk on
+    -> StatefulWalk sh e s    -- ^ Stateful slice-wise walking function
     -> IO s                   -- ^ Monadic zero state.
                               -- Wrap pure state in 'return'.
     -> (s -> s -> IO s)       -- ^ Associative monadic state joining function
     -> UArray r l sh (v e)    -- ^ Source array of vectors
     -> IO (VecList (Dim v) s) -- ^ Vector of gathered per slice results
-{-# INLINE iworkOnSlicesSeparateP #-}
-iworkOnSlicesSeparateP = anyWorkOnSlicesSeparateP
+{-# INLINE iwalkOnSlicesSeparateP #-}
+iwalkOnSlicesSeparateP = anyWalkOnSlicesSeparateP
 
--- | /O(n)/ Run associative stateful work in specified range
--- over slices of array of vectors in parallel.
-rangeWorkOnSlicesSeparateP
+-- | /O(n)/ Run associative stateful walk in specified range,
+-- over slices of array of vectors, in parallel.
+rangeWalkOnSlicesSeparateP
     :: UVecSource r slr l sh v e
-    => Threads                -- ^ Number of threads to parallelize work on
-    -> StatefulWork sh e s    -- ^ Stateful slice-wise working function
+    => Threads                -- ^ Number of threads to parallelize walk on
+    -> StatefulWalk sh e s    -- ^ Stateful slice-wise walking function
     -> IO s                   -- ^ Monadic zero state.
                               -- Wrap pure state in 'return'.
     -> (s -> s -> IO s)       -- ^ Associative monadic state joining function
     -> UArray r l sh (v e)    -- ^ Source array of vectors
     -> sh                     -- ^ Top-left
-    -> sh                     -- ^ and bottom-right corners of range to work in
+    -> sh                     -- ^ and bottom-right corners of range to walk in
     -> IO (VecList (Dim v) s) -- ^ Vector of gathered per slice results
-{-# INLINE rangeWorkOnSlicesSeparateP #-}
-rangeWorkOnSlicesSeparateP = anyRangeWorkOnSlicesSeparateP
+{-# INLINE rangeWalkOnSlicesSeparateP #-}
+rangeWalkOnSlicesSeparateP = anyRangeWalkOnSlicesSeparateP

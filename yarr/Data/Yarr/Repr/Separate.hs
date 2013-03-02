@@ -27,6 +27,7 @@ import Prelude as P
 import Data.Functor ((<$>))
 
 import Data.Yarr.Base as B
+import Data.Yarr.Fusion
 import Data.Yarr.Shape
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Utils.FixedVector as V
@@ -77,14 +78,18 @@ instance (USource r l sh e, Vector v e) => USource (SE r) l sh (v e) where
 
 instance (USource r l sh e, Vector v e) => UVecSource (SE r) r l sh v e
 
-instance (DefaultFusion r D l, Fusion (SE r) D l) => DefaultFusion (SE r) D l
+instance (DefaultFusion r D l sh, Fusion (SE r) D l sh) =>
+        DefaultFusion (SE r) D l sh
+
+instance (DefaultIFusion r l D SH sh, IFusion (SE r) l D SH sh) =>
+        DefaultIFusion (SE r) l D SH sh
 
 
 -- | Group of @f-...-Elems-@ functions is used internally to define
 -- @d-...-Elems-@ functions.
 fmapElems
     :: (VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, Fusion slr fslr l,
+        USource slr l sh a, USource fslr l sh b, Fusion slr fslr l sh,
         Vector v2 b, Dim v ~ Dim v2)
     => VecList (Dim v) (a -> b) -- ^ .
     -> UArray r l sh (v a)
@@ -93,7 +98,7 @@ fmapElems fs = fmapElemsM $ V.map (return .) fs
 
 fmapElemsM
     :: (VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, Fusion slr fslr l,
+        USource slr l sh a, USource fslr l sh b, Fusion slr fslr l sh,
         Vector v2 b, Dim v ~ Dim v2)
     => VecList (Dim v) (a -> IO b) -- ^ .
     -> UArray r l sh (v a)
@@ -104,7 +109,7 @@ fmapElemsM fs arr = Separate (extent arr) $ V.zipWith fmapM fs (slices arr)
 fzipElems2
     :: (VecRegular r slr l sh v a, USource slr l sh a,
         VecRegular r slr l sh v b, USource slr l sh b,
-        USource fslr l sh c, Fusion slr fslr l, Vector v c)
+        USource fslr l sh c, Fusion slr fslr l sh, Vector v c)
     => VecList (Dim v) (a -> b -> c) -- ^ .
     -> UArray r l sh (v a)
     -> UArray r l sh (v b)
@@ -116,7 +121,7 @@ fzipElems2 fs arr1 arr2 =
 fzipElems2M
     :: (VecRegular r slr l sh v a, USource slr l sh a,
         VecRegular r slr l sh v b, USource slr l sh b,
-        USource fslr l sh c, Fusion slr fslr l, Vector v c)
+        USource fslr l sh c, Fusion slr fslr l sh, Vector v c)
     => VecList (Dim v) (a -> b -> IO c) -- ^ .
     -> UArray r l sh (v a)
     -> UArray r l sh (v b)
@@ -136,7 +141,7 @@ fzipElems3
     :: (VecRegular r slr l sh v a, USource slr l sh a,
         VecRegular r slr l sh v b, USource slr l sh b,
         VecRegular r slr l sh v c, USource slr l sh c,
-        USource fslr l sh d, Fusion slr fslr l, Vector v d)
+        USource fslr l sh d, Fusion slr fslr l sh, Vector v d)
     => VecList (Dim v) (a -> b -> c -> d) -- ^ .
     -> UArray r l sh (v a)
     -> UArray r l sh (v b)
@@ -150,7 +155,7 @@ fzipElems3M
     :: (VecRegular r slr l sh v a, USource slr l sh a,
         VecRegular r slr l sh v b, USource slr l sh b,
         VecRegular r slr l sh v c, USource slr l sh c,
-        USource fslr l sh d, Fusion slr fslr l, Vector v d)
+        USource fslr l sh d, Fusion slr fslr l sh, Vector v d)
     => VecList (Dim v) (a -> b -> c -> IO d) -- ^ .
     -> UArray r l sh (v a)
     -> UArray r l sh (v b)
@@ -173,7 +178,7 @@ fzipElems3M fs arr1 arr2 arr3 =
 fzipElems
     :: (Vector v2 b, Arity m, m ~ S m0,
         VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, Fusion slr fslr l)
+        USource slr l sh a, USource fslr l sh b, Fusion slr fslr l sh)
     => VecList (Dim v2) (Fun m a b) -- ^ .
     -> VecList m (UArray r l sh (v a))
     -> UArray (SE fslr) l sh (v2 b)
@@ -184,7 +189,7 @@ fzipElems funs arrs =
 fzipElemsM
     :: (Vector v2 b, Arity m, m ~ S m0,
         VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, Fusion slr fslr l)
+        USource slr l sh a, USource fslr l sh b, Fusion slr fslr l sh)
     => VecList (Dim v2) (Fun m a (IO b)) -- ^ .
     -> VecList m (UArray r l sh (v a))
     -> UArray (SE fslr) l sh (v2 b)
@@ -219,7 +224,7 @@ fzipElemsM funs arrs =
 -- Also, used internally to define 'Data.Yarr.Flow.mapElems' function.
 dmapElems
     :: (VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l,
+        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l sh,
         Vector v2 b, Dim v ~ Dim v2)
     => VecList (Dim v) (a -> b)     -- ^ Vector of mapper functions
     -> UArray r l sh (v a)          -- ^ Source array of vectors
@@ -229,7 +234,7 @@ dmapElems = fmapElems
 -- | /O(1)/ Monadic vesion of 'dmapElems' function.
 dmapElemsM
     :: (VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l,
+        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l sh,
         Vector v2 b, Dim v ~ Dim v2)
     => VecList (Dim v) (a -> IO b)  -- ^ Elemen-wise vector of monadic mappers
     -> UArray r l sh (v a)          -- ^ Source array of vectors
@@ -240,7 +245,7 @@ dmapElemsM = fmapElemsM
 dzipElems2
     :: (VecRegular r slr l sh v a, USource slr l sh a,
         VecRegular r slr l sh v b, USource slr l sh b,
-        USource fslr l sh c, DefaultFusion slr fslr l, Vector v c)
+        USource fslr l sh c, DefaultFusion slr fslr l sh, Vector v c)
     => VecList (Dim v) (a -> b -> c) -- ^ .
     -> UArray r l sh (v a)
     -> UArray r l sh (v b)
@@ -250,7 +255,7 @@ dzipElems2 = fzipElems2
 dzipElems2M
     :: (VecRegular r slr l sh v a, USource slr l sh a,
         VecRegular r slr l sh v b, USource slr l sh b,
-        USource fslr l sh c, DefaultFusion slr fslr l, Vector v c)
+        USource fslr l sh c, DefaultFusion slr fslr l sh, Vector v c)
     => VecList (Dim v) (a -> b -> IO c) -- ^ .
     -> UArray r l sh (v a)
     -> UArray r l sh (v b)
@@ -261,7 +266,7 @@ dzipElems3
     :: (VecRegular r slr l sh v a, USource slr l sh a,
         VecRegular r slr l sh v b, USource slr l sh b,
         VecRegular r slr l sh v c, USource slr l sh c,
-        USource fslr l sh d, DefaultFusion slr fslr l, Vector v d)
+        USource fslr l sh d, DefaultFusion slr fslr l sh, Vector v d)
     => VecList (Dim v) (a -> b -> c -> d) -- ^ .
     -> UArray r l sh (v a)
     -> UArray r l sh (v b)
@@ -273,7 +278,7 @@ dzipElems3M
     :: (VecRegular r slr l sh v a, USource slr l sh a,
         VecRegular r slr l sh v b, USource slr l sh b,
         VecRegular r slr l sh v c, USource slr l sh c,
-        USource fslr l sh d, DefaultFusion slr fslr l, Vector v d)
+        USource fslr l sh d, DefaultFusion slr fslr l sh, Vector v d)
     => VecList (Dim v) (a -> b -> c -> IO d) -- ^ .
     -> UArray r l sh (v a)
     -> UArray r l sh (v b)
@@ -287,7 +292,7 @@ dzipElems3M = fzipElems3M
 dzipElems
     :: (Vector v2 b, Arity m, m ~ S m0,
         VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l)
+        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l sh)
     => VecList (Dim v2) (Fun m a b)    -- ^ Vector of wrapped @m-@ary element-wise zippers
     -> VecList m (UArray r l sh (v a)) -- ^ Vector of source arrays of vectors
     -> UArray (SE fslr) l sh (v2 b)    -- ^ Fused result array
@@ -297,7 +302,7 @@ dzipElems = fzipElems
 dzipElemsM
     :: (Vector v2 b, Arity m, m ~ S m0,
         VecRegular r slr l sh v a,
-        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l)
+        USource slr l sh a, USource fslr l sh b, DefaultFusion slr fslr l sh)
     => VecList (Dim v2) (Fun m a (IO b)) -- ^ Vector of wrapped @m-@ary
                                          -- element-wise monadic zippers
     -> VecList m (UArray r l sh (v a))   -- ^ Vector of source arrays of vectors

@@ -1,5 +1,5 @@
 
-module Data.Yarr.Work.Internal where
+module Data.Yarr.Walk.Internal where
 
 import Prelude as P
 import Control.Monad as M
@@ -15,53 +15,53 @@ import Data.Yarr.Utils.Fork
 import Data.Yarr.Utils.Parallel
 
 
-anyWork
+anyWalk
     :: (USource r l sh a, WorkIndex sh i)
-    => StatefulWork i a s
+    => StatefulWalk i a s
     -> IO s
     -> UArray r l sh a
     -> IO s
-{-# INLINE anyWork #-}
-anyWork fold mz arr = anyRangeWork fold mz arr zero (gsize arr)
+{-# INLINE anyWalk #-}
+anyWalk fold mz arr = anyRangeWalk fold mz arr zero (gsize arr)
 
-anyRangeWork
+anyRangeWalk
     :: (USource r l sh a, WorkIndex sh i)
-    => StatefulWork i a s
+    => StatefulWalk i a s
     -> IO s
     -> UArray r l sh a
     -> i -> i
     -> IO s
-{-# INLINE anyRangeWork #-}
-anyRangeWork fold mz arr start end = do
+{-# INLINE anyRangeWalk #-}
+anyRangeWalk fold mz arr start end = do
     force arr
     res <- fold mz (gindex arr) start end
     touchArray arr
     return res
 
 
-anyWorkP
+anyWalkP
     :: (USource r l sh a, WorkIndex sh i)
     => Threads
-    -> StatefulWork i a s
+    -> StatefulWalk i a s
     -> IO s
     -> (s -> s -> IO s)
     -> UArray r l sh a
     -> IO s
-{-# INLINE anyWorkP #-}
-anyWorkP threads fold mz join arr =
-    anyRangeWorkP threads fold mz join arr zero (gsize arr)
+{-# INLINE anyWalkP #-}
+anyWalkP threads fold mz join arr =
+    anyRangeWalkP threads fold mz join arr zero (gsize arr)
 
-anyRangeWorkP
+anyRangeWalkP
     :: (USource r l sh a, WorkIndex sh i)
     => Threads
-    -> StatefulWork i a s
+    -> StatefulWalk i a s
     -> IO s
     -> (s -> s -> IO s)
     -> UArray r l sh a
     -> i -> i
     -> IO s
-{-# INLINE anyRangeWorkP #-}
-anyRangeWorkP threads fold mz join arr start end = do
+{-# INLINE anyRangeWalkP #-}
+anyRangeWalkP threads fold mz join arr start end = do
     force arr
     ts <- threads
     (r:rs) <- parallel ts $
@@ -71,53 +71,53 @@ anyRangeWorkP threads fold mz join arr start end = do
     M.foldM join r rs
 
 
-anyWorkOnSlicesSeparate
+anyWalkOnSlicesSeparate
     :: (UVecSource r slr l sh v e, WorkIndex sh i)
-    => StatefulWork i e s
+    => StatefulWalk i e s
     -> IO s
     -> UArray r l sh (v e)
     -> IO (VecList (Dim v) s)
-{-# INLINE anyWorkOnSlicesSeparate #-}
-anyWorkOnSlicesSeparate fold mz arr =
-    anyRangeWorkOnSlicesSeparate fold mz arr zero (gsize arr)
+{-# INLINE anyWalkOnSlicesSeparate #-}
+anyWalkOnSlicesSeparate fold mz arr =
+    anyRangeWalkOnSlicesSeparate fold mz arr zero (gsize arr)
 
-anyRangeWorkOnSlicesSeparate
+anyRangeWalkOnSlicesSeparate
     :: (UVecSource r slr l sh v e, WorkIndex sh i)
-    => StatefulWork i e s
+    => StatefulWalk i e s
     -> IO s
     -> UArray r l sh (v e)
     -> i -> i
     -> IO (VecList (Dim v) s)
-{-# INLINE anyRangeWorkOnSlicesSeparate #-}
-anyRangeWorkOnSlicesSeparate fold mz arr start end = do
+{-# INLINE anyRangeWalkOnSlicesSeparate #-}
+anyRangeWalkOnSlicesSeparate fold mz arr start end = do
     force arr
-    rs <- V.mapM (\sl -> anyRangeWork fold mz sl start end) (slices arr)
+    rs <- V.mapM (\sl -> anyRangeWalk fold mz sl start end) (slices arr)
     touchArray arr
     return rs
 
-anyWorkOnSlicesSeparateP
+anyWalkOnSlicesSeparateP
     :: (UVecSource r slr l sh v e, WorkIndex sh i)
     => Threads
-    -> StatefulWork i e s
+    -> StatefulWalk i e s
     -> IO s
     -> (s -> s -> IO s)
     -> UArray r l sh (v e)
     -> IO (VecList (Dim v) s)
-{-# INLINE anyWorkOnSlicesSeparateP #-}
-anyWorkOnSlicesSeparateP threads fold mz join arr =
-    anyRangeWorkOnSlicesSeparateP threads fold mz join arr zero (gsize arr)
+{-# INLINE anyWalkOnSlicesSeparateP #-}
+anyWalkOnSlicesSeparateP threads fold mz join arr =
+    anyRangeWalkOnSlicesSeparateP threads fold mz join arr zero (gsize arr)
 
-anyRangeWorkOnSlicesSeparateP
+anyRangeWalkOnSlicesSeparateP
     :: (UVecSource r slr l sh v e, WorkIndex sh i)
     => Threads
-    -> StatefulWork i e s
+    -> StatefulWalk i e s
     -> IO s
     -> (s -> s -> IO s)
     -> UArray r l sh (v e)
     -> i -> i
     -> IO (VecList (Dim v) s)
-{-# INLINE anyRangeWorkOnSlicesSeparateP #-}
-anyRangeWorkOnSlicesSeparateP threads fold mz join arr start end = do
+{-# INLINE anyRangeWalkOnSlicesSeparateP #-}
+anyRangeWalkOnSlicesSeparateP threads fold mz join arr start end = do
     force arr
     let sls = slices arr
     V.mapM force sls

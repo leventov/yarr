@@ -6,7 +6,7 @@ import Control.Monad
 import Data.Yarr.Base
 import Data.Yarr.Shape as S
 import Data.Yarr.Eval
-import Data.Yarr.Work
+import Data.Yarr.Walk
 
 import Debug.Yarr
 
@@ -18,7 +18,7 @@ toList
     :: (USource r l sh a, PreferredWorkIndex l sh i)
     => UArray r l sh a -> IO [a]
 {-# INLINE toList #-}
-toList = work (reduceR S.foldr (:)) (return [])
+toList = walk (reduceR S.foldr (:)) (return [])
 
 -- | /O(n)/ Loads manifest array into memory, with elements
 -- from flatten list.

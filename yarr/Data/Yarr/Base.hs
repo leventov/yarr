@@ -16,11 +16,11 @@ module Data.Yarr.Base (
     USource(..),
     UVecSource(..),
 
-    -- * Fusion
-    DefaultFusion(..), Fusion(..),
-
     -- * Manifest and Target classes
-    UTarget(..), Manifest(..), UVecTarget(..)
+    UTarget(..), Manifest(..), UVecTarget(..),
+
+    -- * Work index
+    PreferredWorkIndex(..), WorkIndex(..),
 
 ) where
 
@@ -144,170 +144,6 @@ class (VecRegular r slr l sh v e, USource r l sh (v e), USource slr l sh e) =>
         UVecSource r slr l sh v e
 
 
--- | Generalized, non-injective version of 'DefaultFusion'. Used internally.
---
--- Minimum complete defenition: 'fmapM', 'fzip2M', 'fzip3M' and 'fzipM'.
---
--- The class doesn't have vector counterpart, it's role play top-level functions
--- from "Data.Yarr.Repr.Separate" module.
-class Fusion r fr l where
-    fmap :: (USource r l sh a, USource fr l sh b)
-         => (a -> b) -- ^ .
-         -> UArray r l sh a -> UArray fr l sh b
-    fmap f = fmapM (return . f)
-    
-    fmapM :: (USource r l sh a, USource fr l sh b)
-          => (a -> IO b) -> UArray r l sh a -> UArray fr l sh b
-
-    fzip2 :: (USource r l sh a, USource r l sh b, USource fr l sh c)
-          => (a -> b -> c) -- ^ .
-          -> UArray r l sh a
-          -> UArray r l sh b
-          -> UArray fr l sh c
-    fzip2 f = fzip2M (\x y -> return (f x y))
-
-    fzip2M :: (USource r l sh a, USource r l sh b, USource fr l sh c)
-           => (a -> b -> IO c) -- ^ .
-           -> UArray r l sh a
-           -> UArray r l sh b
-           -> UArray fr l sh c
-
-    fzip3 :: (USource r l sh a, USource r l sh b, USource r l sh c,
-              USource fr l sh d)
-          => (a -> b -> c -> d) -- ^ .
-          -> UArray r l sh a
-          -> UArray r l sh b
-          -> UArray r l sh c
-          -> UArray fr l sh d
-    fzip3 f = fzip3M (\x y z -> return (f x y z))
-
-    fzip3M :: (USource r l sh a, USource r l sh b, USource r l sh c,
-               USource fr l sh d)
-           => (a -> b -> c -> IO d) -- ^ .
-           -> UArray r l sh a
-           -> UArray r l sh b
-           -> UArray r l sh c
-           -> UArray fr l sh d
-
-    fzip :: (USource r l sh a, USource fr l sh b, Arity n, n ~ S n0)
-         => Fun n a b -- ^ .
-         -> VecList n (UArray r l sh a) -> UArray fr l sh b
-    fzip fun arrs = let funM = P.fmap return fun in fzipM funM arrs
-
-    fzipM :: (USource r l sh a, USource fr l sh b, Arity n, n ~ S n0)
-          => Fun n a (IO b) -- ^ .
-          -> VecList n (UArray r l sh a) -> UArray fr l sh b
-
-    {-# INLINE fmap #-}
-    {-# INLINE fzip2 #-}
-    {-# INLINE fzip3 #-}
-    {-# INLINE fzip #-}
-
-
--- | This class abstracts pair of array types, which could be (preferably should be)
--- mapped /(fused)/ one to another. Injective version of 'Fusion' class.
--- 
--- Parameters:
---
---  * @r@ - source array representation. It determines result representation.
---
---  * @fr@ (fused repr) - result (fused) array representation. Result array
---    isn't indeed presented in memory, finally it should be
---    'Data.Yarr.Eval.compute'd or 'Data.Yarr.Eval.Load'ed to 'Manifest'
---    representation.
---
---  * @l@ - load type, common for source and fused arrays
---
--- All functions are already defined, using non-injective versions from 'Fusion' class.
---
--- The class doesn't have vector counterpart, it's role play top-level functions
--- from "Data.Yarr.Repr.Separate" module.
-class Fusion r fr l => DefaultFusion r fr l | r -> fr where
-    -- | /O(1)/ Pure element mapping.
-    --
-    -- Main basic \"map\" in Yarr.
-    dmap :: (USource r l sh a, USource fr l sh b)
-         => (a -> b)         -- ^ Element mapper function
-         -> UArray r l sh a  -- ^ Source array
-         -> UArray fr l sh b -- ^ Result array
-    dmap = Data.Yarr.Base.fmap
-    
-    -- | /O(1)/ Monadic element mapping.
-    dmapM :: (USource r l sh a, USource fr l sh b)
-          => (a -> IO b)      -- ^ Monadic element mapper function
-          -> UArray r l sh a  -- ^ Source array
-          -> UArray fr l sh b -- ^ Result array
-    dmapM = fmapM
-
-    -- | /O(1)/ Zipping 2 arrays of the same type indexes and shapes.
-    -- 
-    -- Example:
-    -- 
-    -- @
-    -- let productArr = dzip2 (*) arr1 arr2
-    -- @
-    dzip2 :: (USource r l sh a, USource r l sh b, USource fr l sh c)
-          => (a -> b -> c)     -- ^ Pure element zipper function
-          -> UArray r l sh a   -- ^ 1st source array
-          -> UArray r l sh b   -- ^ 2nd source array
-          -> UArray fr l sh c  -- ^ Fused result array
-    dzip2 = fzip2
-
-    -- | /O(1)/ Monadic version of 'dzip2' function.
-    dzip2M :: (USource r l sh a, USource r l sh b, USource fr l sh c)
-           => (a -> b -> IO c) -- ^ Monadic element zipper function
-           -> UArray r l sh a  -- ^ 1st source array
-           -> UArray r l sh b  -- ^ 2nd source array
-           -> UArray fr l sh c -- ^ Result array
-    dzip2M = fzip2M
-
-    -- | /O(1)/ Zipping 3 arrays of the same type indexes and shapes.
-    dzip3 :: (USource r l sh a, USource r l sh b, USource r l sh c,
-              USource fr l sh d)
-          => (a -> b -> c -> d) -- ^ Pure element zipper function
-          -> UArray r l sh a    -- ^ 1st source array
-          -> UArray r l sh b    -- ^ 2nd source array
-          -> UArray r l sh c    -- ^ 3rd source array
-          -> UArray fr l sh d   -- ^ Result array
-    dzip3 = fzip3
-
-    -- | /O(1)/ Monadic version of 'dzip3' function.
-    dzip3M :: (USource r l sh a, USource r l sh b, USource r l sh c,
-               USource fr l sh d)
-           => (a -> b -> c -> IO d) -- ^ Monadic element zipper function
-           -> UArray r l sh a       -- ^ 1st source array
-           -> UArray r l sh b       -- ^ 2nd source array
-           -> UArray r l sh c       -- ^ 3rd source array
-           -> UArray fr l sh d      -- ^ Fused result array
-    dzip3M = fzip3M
-
-    -- | /O(1)/ Generalized element zipping with pure function.
-    -- Zipper function is wrapped in 'Fun' for injectivity.
-    dzip :: (USource r l sh a, USource fr l sh b, Arity n, n ~ S n0)
-         => Fun n a b                   -- ^ Wrapped function positionally
-                                        -- accepts elements from source arrays
-                                        -- and emits element for fused array
-         -> VecList n (UArray r l sh a) -- ^ Source arrays
-         -> UArray fr l sh b            -- ^ Result array
-    dzip = fzip
-
-    -- | /O(1)/ Monadic version of 'dzip' function.
-    dzipM :: (USource r l sh a, USource fr l sh b, Arity n, n ~ S n0)
-          => Fun n a (IO b)              -- ^ Wrapped monadic zipper
-          -> VecList n (UArray r l sh a) -- ^ Source arrays
-          -> UArray fr l sh b            -- ^ Result array
-    dzipM = fzipM
-
-    {-# INLINE dmap #-}
-    {-# INLINE dmapM #-}
-    {-# INLINE dzip2 #-}
-    {-# INLINE dzip2M #-}
-    {-# INLINE dzip3 #-}
-    {-# INLINE dzip3M #-}
-    {-# INLINE dzip #-}
-    {-# INLINE dzipM #-}
-
-
 -- | Class for mutable arrays.
 --
 -- Just like for 'USource', it's function are unsafe
@@ -369,3 +205,44 @@ class (USource r l sh a, UTarget mr l sh a) =>
 class (VecRegular tr tslr tl sh v e,
        UTarget tr tl sh (v e), UTarget tslr tl sh e) =>
         UVecTarget tr tslr tl sh v e
+
+
+-- | Internal implementation class. Generalizes @linear-@ and simple
+-- indexing and writing function in 'USource' and 'UTarget' classes.
+class (Shape sh, Shape i) => WorkIndex sh i where
+    gindex :: USource r l sh a => UArray r l sh a -> i -> IO a
+    gwrite :: UTarget tr tl sh a => UArray tr tl sh a -> i -> a -> IO ()
+    gsize :: USource r l sh a => UArray r l sh a -> i
+
+instance Shape sh => WorkIndex sh sh where
+    gindex = index
+    gwrite = write
+    gsize = extent
+    {-# INLINE gindex #-}
+    {-# INLINE gwrite #-}
+    {-# INLINE gsize #-}
+
+#define WI_INT_INST(sh)           \
+instance WorkIndex sh Int where { \
+    gindex = linearIndex;         \
+    gwrite = linearWrite;         \
+    gsize = size . extent;        \
+    {-# INLINE gindex #-};        \
+    {-# INLINE gwrite #-};        \
+    {-# INLINE gsize #-};         \
+}
+
+WI_INT_INST(Dim2)
+WI_INT_INST(Dim3)
+
+-- | Type level fixation of preferred work (load, fold, etc.)
+-- index type of the array load type.
+--
+-- Parameters:
+--
+--  * @l@ - load type index
+--
+--  * @sh@ - shape of arrays
+--
+--  * @i@ - preferred work index, @Int@ or @sh@ itself
+class WorkIndex sh i => PreferredWorkIndex l sh i | l sh -> i

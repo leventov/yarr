@@ -17,11 +17,7 @@ module Data.Yarr.Eval (
     L, SH,
 
     -- * Utility
-    entire,
-
-    -- * Work index
-    WorkIndex(..), PreferredWorkIndex(..),
-
+    entire
 ) where
 
 import GHC.Conc
@@ -51,36 +47,6 @@ caps = getNumCapabilities
 threads :: Int -> Threads
 {-# INLINE threads #-}
 threads = return
-
--- | Internal implementation class.
-class (Shape sh, Shape i) => WorkIndex sh i where
-    gindex :: USource r l sh a => UArray r l sh a -> i -> IO a
-    gwrite :: UTarget tr tl sh a => UArray tr tl sh a -> i -> a -> IO ()
-    gsize :: USource r l sh a => UArray r l sh a -> i
-
-instance Shape sh => WorkIndex sh sh where
-    gindex = index
-    gwrite = write
-    gsize = extent
-    {-# INLINE gindex #-}
-    {-# INLINE gwrite #-}
-    {-# INLINE gsize #-}
-
-#define WI_INT_INST(sh)           \
-instance WorkIndex sh Int where { \
-    gindex = linearIndex;         \
-    gwrite = linearWrite;         \
-    gsize = size . extent;        \
-    {-# INLINE gindex #-};        \
-    {-# INLINE gwrite #-};        \
-    {-# INLINE gsize #-};         \
-}
-
-WI_INT_INST(Dim2)
-WI_INT_INST(Dim3)
-
--- | Internal implementation class.
-class WorkIndex sh i => PreferredWorkIndex l sh i | l sh -> i where
 
 
 -- | This class abstracts pair of array types,
@@ -463,4 +429,3 @@ instance (VecLoad r slr l tr tslr tl sh v v2 e,                     \
 SH_LOAD_INST(SH,L)
 SH_LOAD_INST(L,SH)
 SH_LOAD_INST(SH,SH)
-
