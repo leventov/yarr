@@ -30,7 +30,6 @@ main = do
 
     let lightness = (slices hslImage) V.! 2
 
-    benchMin "lhf" 100 ext (computeHist lightness >> return ())
     hist <- time "lightness hist fold" ext (computeHist lightness)
 
     cdf <- cumulateHist hist

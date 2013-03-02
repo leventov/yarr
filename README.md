@@ -7,3 +7,9 @@ Yarr — yet another array library
 [Benchmark results](https://github.com/leventov/yarr/blob/master/tests/bench-results.md)
 
 [Description in Russian](https://github.com/leventov/yarr/blob/master/cg-course-paper.pdf)
+
+Acknowledgements
+----------------
+* To [Ben Lippmeier](http://www.cse.unsw.edu.au/~benl/), for [Repa 3](http://hackage.haskell.org/package/repa-3.2.3.1) design and implementation
+* To [Aleksey Khudyakov](https://bitbucket.org/Shimuuar/) for [fixed-vector](http://hackage.haskell.org/package/fixed-vector) library
+* To Roman Leshchinskiy, who [have invented](http://unlines.wordpress.com/2010/11/15/generics-for-small-fixed-size-vectors/) fixed-vector
