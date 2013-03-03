@@ -71,31 +71,31 @@ anyRangeWalkP threads fold mz join arr start end = do
     M.foldM join r rs
 
 
-anyWalkOnSlicesSeparate
+anyWalkSlicesSeparate
     :: (UVecSource r slr l sh v e, WorkIndex sh i)
     => StatefulWalk i e s
     -> IO s
     -> UArray r l sh (v e)
     -> IO (VecList (Dim v) s)
-{-# INLINE anyWalkOnSlicesSeparate #-}
-anyWalkOnSlicesSeparate fold mz arr =
-    anyRangeWalkOnSlicesSeparate fold mz arr zero (gsize arr)
+{-# INLINE anyWalkSlicesSeparate #-}
+anyWalkSlicesSeparate fold mz arr =
+    anyRangeWalkSlicesSeparate fold mz arr zero (gsize arr)
 
-anyRangeWalkOnSlicesSeparate
+anyRangeWalkSlicesSeparate
     :: (UVecSource r slr l sh v e, WorkIndex sh i)
     => StatefulWalk i e s
     -> IO s
     -> UArray r l sh (v e)
     -> i -> i
     -> IO (VecList (Dim v) s)
-{-# INLINE anyRangeWalkOnSlicesSeparate #-}
-anyRangeWalkOnSlicesSeparate fold mz arr start end = do
+{-# INLINE anyRangeWalkSlicesSeparate #-}
+anyRangeWalkSlicesSeparate fold mz arr start end = do
     force arr
     rs <- V.mapM (\sl -> anyRangeWalk fold mz sl start end) (slices arr)
     touchArray arr
     return rs
 
-anyWalkOnSlicesSeparateP
+anyWalkSlicesSeparateP
     :: (UVecSource r slr l sh v e, WorkIndex sh i)
     => Threads
     -> StatefulWalk i e s
@@ -103,11 +103,11 @@ anyWalkOnSlicesSeparateP
     -> (s -> s -> IO s)
     -> UArray r l sh (v e)
     -> IO (VecList (Dim v) s)
-{-# INLINE anyWalkOnSlicesSeparateP #-}
-anyWalkOnSlicesSeparateP threads fold mz join arr =
-    anyRangeWalkOnSlicesSeparateP threads fold mz join arr zero (gsize arr)
+{-# INLINE anyWalkSlicesSeparateP #-}
+anyWalkSlicesSeparateP threads fold mz join arr =
+    anyRangeWalkSlicesSeparateP threads fold mz join arr zero (gsize arr)
 
-anyRangeWalkOnSlicesSeparateP
+anyRangeWalkSlicesSeparateP
     :: (UVecSource r slr l sh v e, WorkIndex sh i)
     => Threads
     -> StatefulWalk i e s
@@ -116,8 +116,8 @@ anyRangeWalkOnSlicesSeparateP
     -> UArray r l sh (v e)
     -> i -> i
     -> IO (VecList (Dim v) s)
-{-# INLINE anyRangeWalkOnSlicesSeparateP #-}
-anyRangeWalkOnSlicesSeparateP threads fold mz join arr start end = do
+{-# INLINE anyRangeWalkSlicesSeparateP #-}
+anyRangeWalkSlicesSeparateP threads fold mz join arr start end = do
     force arr
     let sls = slices arr
     V.mapM force sls

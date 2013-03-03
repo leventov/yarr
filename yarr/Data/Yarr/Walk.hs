@@ -19,8 +19,8 @@ module Data.Yarr.Walk (
     -- * Walk runners
     walk, iwalk, rangeWalk,
     walkP, iwalkP, rangeWalkP,
-    walkOnSlicesSeparate, iwalkOnSlicesSeparate, rangeWalkOnSlicesSeparate,
-    walkOnSlicesSeparateP, iwalkOnSlicesSeparateP, rangeWalkOnSlicesSeparateP,
+    walkSlicesSeparate, iwalkSlicesSeparate, rangeWalkSlicesSeparate,
+    walkSlicesSeparateP, iwalkSlicesSeparateP, rangeWalkSlicesSeparateP,
 
     -- * Aliases for walk types
     StatefulWalk, Foldl, Foldr,
@@ -192,31 +192,31 @@ rangeWalkP = anyRangeWalkP
 
 -- | /O(n)/ Walk with state, with non-indexed function,
 -- over each slice of array of vectors.
-walkOnSlicesSeparate
+walkSlicesSeparate
     :: (UVecSource r slr l sh v e, PreferredWorkIndex l sh i)
     => StatefulWalk i e s     -- ^ Stateful slice-wise walking function
     -> IO s                   -- ^ Monadic initial state (fold zero).
                               -- Wrap pure state in 'return'.
     -> UArray r l sh (v e)    -- ^ Source array of vectors
     -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
-{-# INLINE walkOnSlicesSeparate #-}
-walkOnSlicesSeparate = anyWalkOnSlicesSeparate
+{-# INLINE walkSlicesSeparate #-}
+walkSlicesSeparate = anyWalkSlicesSeparate
 
 -- | /O(n)/ Walk with state, with indexed function,
 -- over each slice of array of vectors.
-iwalkOnSlicesSeparate
+iwalkSlicesSeparate
     :: UVecSource r slr l sh v e
     => StatefulWalk sh e s    -- ^ Stateful slice-wise walking function
     -> IO s                   -- ^ Monadic initial state (fold zero).
                               -- Wrap pure state in 'return'.
     -> UArray r l sh (v e)    -- ^ Source array of vectors
     -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
-{-# INLINE iwalkOnSlicesSeparate #-}
-iwalkOnSlicesSeparate = anyWalkOnSlicesSeparate
+{-# INLINE iwalkSlicesSeparate #-}
+iwalkSlicesSeparate = anyWalkSlicesSeparate
 
 -- | /O(n)/ Walk with state, in specified range of indices,
 -- over each slice of array of vectors.
-rangeWalkOnSlicesSeparate
+rangeWalkSlicesSeparate
     :: UVecSource r slr l sh v e
     => StatefulWalk sh e s    -- ^ Stateful slice-wise walking function
     -> IO s                   -- ^ Monadic initial state (fold zero).
@@ -225,13 +225,13 @@ rangeWalkOnSlicesSeparate
     -> sh                     -- ^ Top-left
     -> sh                     -- ^ and bottom-right corners of range to walk in
     -> IO (VecList (Dim v) s) -- ^ Vector of final states (fold results)
-{-# INLINE rangeWalkOnSlicesSeparate #-}
-rangeWalkOnSlicesSeparate = anyRangeWalkOnSlicesSeparate
+{-# INLINE rangeWalkSlicesSeparate #-}
+rangeWalkSlicesSeparate = anyRangeWalkSlicesSeparate
 
 
 -- | /O(n)/ Run associative non-indexed stateful walk
 -- over slices of array of vectors, in parallel.
-walkOnSlicesSeparateP
+walkSlicesSeparateP
     :: (UVecSource r slr l sh v e, PreferredWorkIndex l sh i)
     => Threads                -- ^ Number of threads to parallelize walk on
     -> StatefulWalk i e s     -- ^ Stateful slice-wise walking function
@@ -240,12 +240,12 @@ walkOnSlicesSeparateP
     -> (s -> s -> IO s)       -- ^ Associative monadic state joining function
     -> UArray r l sh (v e)    -- ^ Source array of vectors
     -> IO (VecList (Dim v) s) -- ^ Vector of gathered per slice results
-{-# INLINE walkOnSlicesSeparateP #-}
-walkOnSlicesSeparateP = anyWalkOnSlicesSeparateP
+{-# INLINE walkSlicesSeparateP #-}
+walkSlicesSeparateP = anyWalkSlicesSeparateP
 
 -- | /O(n)/ Run associative indexed stateful walk
 -- over slices of array of vectors, in parallel.
-iwalkOnSlicesSeparateP
+iwalkSlicesSeparateP
     :: UVecSource r slr l sh v e
     => Threads                -- ^ Number of threads to parallelize walk on
     -> StatefulWalk sh e s    -- ^ Stateful slice-wise walking function
@@ -254,12 +254,12 @@ iwalkOnSlicesSeparateP
     -> (s -> s -> IO s)       -- ^ Associative monadic state joining function
     -> UArray r l sh (v e)    -- ^ Source array of vectors
     -> IO (VecList (Dim v) s) -- ^ Vector of gathered per slice results
-{-# INLINE iwalkOnSlicesSeparateP #-}
-iwalkOnSlicesSeparateP = anyWalkOnSlicesSeparateP
+{-# INLINE iwalkSlicesSeparateP #-}
+iwalkSlicesSeparateP = anyWalkSlicesSeparateP
 
 -- | /O(n)/ Run associative stateful walk in specified range,
 -- over slices of array of vectors, in parallel.
-rangeWalkOnSlicesSeparateP
+rangeWalkSlicesSeparateP
     :: UVecSource r slr l sh v e
     => Threads                -- ^ Number of threads to parallelize walk on
     -> StatefulWalk sh e s    -- ^ Stateful slice-wise walking function
@@ -270,5 +270,5 @@ rangeWalkOnSlicesSeparateP
     -> sh                     -- ^ Top-left
     -> sh                     -- ^ and bottom-right corners of range to walk in
     -> IO (VecList (Dim v) s) -- ^ Vector of gathered per slice results
-{-# INLINE rangeWalkOnSlicesSeparateP #-}
-rangeWalkOnSlicesSeparateP = anyRangeWalkOnSlicesSeparateP
+{-# INLINE rangeWalkSlicesSeparateP #-}
+rangeWalkSlicesSeparateP = anyRangeWalkSlicesSeparateP

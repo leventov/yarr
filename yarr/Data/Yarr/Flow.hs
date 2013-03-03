@@ -4,7 +4,7 @@ module Data.Yarr.Flow (
     -- * Basic fusion
     DefaultFusion(..), DefaultIFusion(..),
 
-    -- ** 'D'elayed flow and zipping shortcuts
+    -- ** Delayed flow and zipping shortcuts
     dzipWith, dzipWith3, D, delay,
 
     -- * Vector fusion

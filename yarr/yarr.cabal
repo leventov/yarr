@@ -1,5 +1,5 @@
 Name:                yarr
-Version:             1.3.0
+Version:             1.3.1
 Synopsis:            Yet another array library
 Description:
     Yarr is a new blazing fast dataflow framework (array library),
@@ -20,7 +20,7 @@ Description:
     .
     Shortcoming by design: lack of pure indexing interface.
     .
-    /Changes in 1.3.0 (ex. 0.9.3):/
+    /Changes in 1.3 (ex. 0.9.3):/
     .
         * IFusion -- mapping/zipping with index
     .
@@ -90,7 +90,6 @@ Library
         Data.Yarr.Utils.Parallel
         Data.Yarr.Utils.Split
         Data.Yarr.Utils.Primitive
-        Data.Yarr.Utils.LowLevelFlow
         Debug.Yarr
 
     other-modules:
@@ -111,3 +110,4 @@ Library
 
         Data.Yarr.Walk.Internal
         Data.Yarr.Utils.Storable
+        Data.Yarr.Utils.LowLevelFlow

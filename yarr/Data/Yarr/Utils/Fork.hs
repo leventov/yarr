@@ -10,11 +10,12 @@ import Data.Yarr.Utils.Parallel as Par
 
 makeForkEachSlice
     :: (Shape sh, Arity n, v ~ VecList n)
-    => Int               -- ^ Number of threads to fork work on
-    -> sh                -- ^ Start
-    -> sh                -- ^ End
-    -> v (Work sh a)     -- ^ Slice works
-    -> (Int -> IO (v a)) -- ^ Thread work, returns piece of result for each slice
+    => Int               -- ^ Number of threads to fork the work on
+    -> sh                -- ^ Lower bound
+    -> sh                -- ^ Upper bound
+    -> v (Work sh a)     -- ^ Per-slice interval works
+    -> (Int -> IO (v a)) -- ^ Producer of per-thread work,
+                         -- which returns piece of result for each slice
 {-# INLINE makeForkEachSlice #-}
 makeForkEachSlice threads start end rangeWorks =
     let {-# INLINE etWork #-}
@@ -24,11 +25,11 @@ makeForkEachSlice threads start end rangeWorks =
 
 makeForkSlicesOnce
     :: (Shape sh, Arity n)
-    => Int                    -- ^ Number of threads to fork work on
-    -> VecList n (sh, sh)     -- ^ (start, end) for each slice
-    -> VecList n (Work sh a)  -- ^ Slice works
-    -> (Int -> IO [(Int, a)]) -- ^ Thread work, returns pieces of results:
-                              -- [(slice number, result)]
+    => Int                    -- ^ Number of threads to fork the work on
+    -> VecList n (sh, sh)     -- ^ (lower bound, upper bound) for each slice
+    -> VecList n (Work sh a)  -- ^ Per-slice interval works
+    -> (Int -> IO [(Int, a)]) -- ^ Producer of per-thread work,
+                              -- which returns pieces of results: [(slice number, result)]
 {-# INLINE makeForkSlicesOnce #-}
 makeForkSlicesOnce !threads ranges rangeWorks =
     let !slices = V.length rangeWorks
@@ -74,11 +75,11 @@ makeForkSlicesOnce !threads ranges rangeWorks =
 
 makeFork
     :: Shape sh
-    => Int            -- ^ Number of threads to fork work on
-    -> sh             -- ^ Start
-    -> sh             -- ^ End
-    -> (Work sh a)    -- ^ Work
-    -> (Int -> IO a)  -- ^ Thread work
+    => Int            -- ^ Number of threads to fork the work on
+    -> sh             -- ^ Lower bound
+    -> sh             -- ^ Upper bound
+    -> (Work sh a)    -- ^ Interval work
+    -> (Int -> IO a)  -- ^ Producer of per-thread work
 {-# INLINE makeFork #-}
 makeFork chunks start end =
     let {-# INLINE chunkRange #-}

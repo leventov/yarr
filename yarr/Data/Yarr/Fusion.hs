@@ -248,7 +248,7 @@ class PreferredWorkIndex fl sh sh => IFusion r l fr fl sh | r l fr -> fl where
 --    'Data.Yarr.Eval.compute'd or 'Data.Yarr.Eval.Load'ed to 'Data.Yarr.Base.Manifest'
 --    representation.
 --
---  * @fl@ - result, \"shaped\" load type.
+--  * @fl@ - result, \"shaped\" load type
 --
 --  * @sh@ - shape of arrays
 --
