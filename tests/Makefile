@@ -37,5 +37,5 @@ le: lightness-equalization.hs
 	objdump -d $< > $@
 
 clean:
-	rm *.o *.hi t-* ct blur canny ub repa-canny cv-canny le 2> /dev/null
+	rm *.o *.hi t-* ct blur canny ub pm repa-canny cv-canny le 2> /dev/null
     

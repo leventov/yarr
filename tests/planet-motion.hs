@@ -40,13 +40,9 @@ forces
         USource r2 L Dim1 Mass, DefaultFusion r2 D L Dim1)
     => Positions r1 -> Masses r2 -> Forces D
 forces ps ms =
-    delayLinear $ reduceInner reduceF (const (return V.zero)) partialForces
+    delayLinear $ reduceInner accForces (const (return V.zero)) partialForces
   where
-    reduceF = ireduceL S.foldl accForce
-    accForce acc (i, j) f
-        | j == 0    = f
-        | i == j    = acc
-        | otherwise = V.zipWith (+) acc f
+    accForces = reduceL S.foldl (V.zipWith (+))
     partialForces = icartProduct2 forceBetween pms pms
     pms = Y.dzipWith (,) ps ms
     forceBetween (i, j) (pos1, mass1) (pos2, mass2)
@@ -74,7 +70,7 @@ stepPosition timeStep ps vs = Y.dzipWith newPos ps vs
   where newPos pos speed = V.zipWith (+) pos (V.map (* timeStep) speed)
 
 
--- [Sun -- Earth -- Jupiter] system -- .. -- >> --
+-- [Sun -- Earth -- Jupiter] system -- -- >> --
 
 nBodies = 3
 
