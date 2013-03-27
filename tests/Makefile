@@ -21,6 +21,9 @@ canny: canny.hs
 ub: blur-unroll-bench.hs
 	ghc --make $(YARR_FLAGS) $(DDUMP_CORE) -o ub blur-unroll-bench.hs > ub-core.hs
 
+pm: planet-motion.hs
+	ghc --make $(YARR_FLAGS) $(DDUMP_CORE) -o pm planet-motion.hs > pm-core.hs
+
 repa-canny: canny-repa.hs
 	ghc --make $(REPA_FLAGS) -o repa-canny canny-repa.hs
 

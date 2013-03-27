@@ -13,7 +13,11 @@ module Data.Yarr.Repr.Delayed (
     UArray(..),
 
     -- * Misc
-    L, SH, fromFunction, delay, delayShaped,
+    L, SH, fromFunction, fromLinearFunction,
+    delay, delayShaped, delayLinear,
+
+    -- ** Const arrays
+    linearConst, shapedConst,
 ) where
 
 import Prelude as P
@@ -234,7 +238,7 @@ delay = F.fmap id
 -- that has specialized implementation in the library (mapping, zipping, etc).
 --
 -- Suitable to obtain arrays of constant element,
--- of indices (@fromFunction sh 'id'@), and so on.
+-- of indices (@fromFunction sh 'return'@), and so on.
 fromFunction
     :: Shape sh
     => sh               -- ^ Extent of array
@@ -243,6 +247,24 @@ fromFunction
 {-# INLINE fromFunction #-}
 fromFunction sh f = ShapeDelayed sh (return ()) (return ()) f
 
+fromLinearFunction
+    :: Shape sh
+    => sh               -- ^ Extent of array
+    -> (Int -> IO a)     -- ^ Linear ndexing function
+    -> UArray D L sh a -- ^ Result array
+{-# INLINE fromLinearFunction #-}
+fromLinearFunction sh f = LinearDelayed sh (return ()) (return ()) f
+
+linearConst
+    :: Shape sh => sh -> a -> UArray D L sh a
+{-# INLINE linearConst #-}
+linearConst sh x = fromLinearFunction sh (const (return x))
+
+shapedConst
+    :: Shape sh => sh -> a -> UArray D SH sh a
+{-# INLINE shapedConst #-}
+shapedConst sh x = fromFunction sh (const (return x))
+
 -- | Wraps @('index' arr)@ into Delayed representation. Normally you shouldn't need
 -- to use this function. It may be dangerous for performance, because
 -- preferred 'Data.Yarr.Eval.Load'ing type of source array is ignored.
@@ -250,6 +272,11 @@ delayShaped :: USource r l sh a => UArray r l sh a -> UArray D SH sh a
 {-# INLINE delayShaped #-}
 delayShaped arr =
     ShapeDelayed (extent arr) (touchArray arr) (force arr) (index arr)
+
+delayLinear :: USource r l sh a => UArray r l sh a -> UArray D L sh a
+{-# INLINE delayLinear #-}
+delayLinear arr =
+    LinearDelayed (extent arr) (touchArray arr) (force arr) (linearIndex arr)
 
 -- | In opposite to 'D'elayed (source) Delayed Target holds abstract /writing/
 -- function: @(sh -> a -> IO ())@. It may be used to perform arbitrarily tricky

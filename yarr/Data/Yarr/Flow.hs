@@ -13,10 +13,15 @@ module Data.Yarr.Flow (
     dzipElems, dzipElemsM,
 
     -- * High level shortcuts
-    traverse, zipElems, mapElems, mapElemsM
+    traverse, zipElems, mapElems, mapElemsM,
+
+    -- ** Cartesian products
+    cartProduct2, icartProduct2, icartProduct2M,
+    cartProduct3, icartProduct3, icartProduct3M,
 ) where
 
 import Data.Yarr.Base
+import Data.Yarr.Shape
 import Data.Yarr.Fusion
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
@@ -127,3 +132,84 @@ dzipWith3
     -> UArray D l sh d    -- ^ Result array
 {-# INLINE dzipWith3 #-}
 dzipWith3 f arr1 arr2 arr3 = dzip3 f (delay arr1) (delay arr2) (delay arr3)
+
+
+cartProduct2
+    :: (USource r1 l1 Dim1 a, USource r2 l2 Dim1 b)
+    => (a -> b -> c)
+    -> UArray r1 l1 Dim1 a
+    -> UArray r2 l2 Dim1 b
+    -> UArray D SH Dim2 c
+{-# INLINE cartProduct2 #-}
+cartProduct2 f = icartProduct2M (\_ x y -> return (f x y))
+
+icartProduct2
+    :: (USource r1 l1 Dim1 a, USource r2 l2 Dim1 b)
+    => (Dim2 -> a -> b -> c)
+    -> UArray r1 l1 Dim1 a
+    -> UArray r2 l2 Dim1 b
+    -> UArray D SH Dim2 c
+{-# INLINE icartProduct2 #-}
+icartProduct2 f = icartProduct2M (\ix x y -> return (f ix x y))
+
+icartProduct2M
+    :: (USource r1 l1 Dim1 a, USource r2 l2 Dim1 b)
+    => (Dim2 -> a -> b -> IO c)
+    -> UArray r1 l1 Dim1 a
+    -> UArray r2 l2 Dim1 b
+    -> UArray D SH Dim2 c
+{-# INLINE icartProduct2M #-}
+icartProduct2M f arr1 arr2 =
+    ShapeDelayed
+        (extent arr1, extent arr2)
+        (touchArray arr1 >> touchArray arr2)
+        (force arr1 >> force arr2)
+        indexF
+  where
+    {-# INLINE indexF #-}
+    indexF ix@(i, j) = do
+        a <- arr1 `index` i
+        b <- arr2 `index` j
+        f ix a b
+
+cartProduct3
+    :: (USource r1 l1 Dim1 a, USource r2 l2 Dim1 b, USource r3 l3 Dim1 c)
+    => (a -> b -> c -> d)
+    -> UArray r1 l1 Dim1 a
+    -> UArray r2 l2 Dim1 b
+    -> UArray r3 l3 Dim1 c
+    -> UArray D SH Dim3 d
+{-# INLINE cartProduct3 #-}
+cartProduct3 f = icartProduct3M (\_ x y z -> return (f x y z))
+
+icartProduct3
+    :: (USource r1 l1 Dim1 a, USource r2 l2 Dim1 b, USource r3 l3 Dim1 c)
+    => (Dim3 -> a -> b -> c -> d)
+    -> UArray r1 l1 Dim1 a
+    -> UArray r2 l2 Dim1 b
+    -> UArray r3 l3 Dim1 c
+    -> UArray D SH Dim3 d
+{-# INLINE icartProduct3 #-}
+icartProduct3 f = icartProduct3M (\ix x y z -> return (f ix x y z))
+
+icartProduct3M
+    :: (USource r1 l1 Dim1 a, USource r2 l2 Dim1 b, USource r3 l3 Dim1 c)
+    => (Dim3 -> a -> b -> c -> IO d)
+    -> UArray r1 l1 Dim1 a
+    -> UArray r2 l2 Dim1 b
+    -> UArray r3 l3 Dim1 c
+    -> UArray D SH Dim3 d
+{-# INLINE icartProduct3M #-}
+icartProduct3M f arr1 arr2 arr3 =
+    ShapeDelayed
+        (extent arr1, extent arr2, extent arr3)
+        (touchArray arr1 >> touchArray arr2 >> touchArray arr3)
+        (force arr1 >> force arr2 >> force arr3)
+        indexF
+  where
+    {-# INLINE indexF #-}
+    indexF ix@(i, j, k) = do
+        a <- arr1 `index` i
+        b <- arr2 `index` j
+        c <- arr3 `index` k
+        f ix a b c

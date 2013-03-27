@@ -9,11 +9,27 @@ import Data.Function (on)
 import Data.Yarr.Base
 import Data.Yarr.Shape as S
 import Data.Yarr.Eval
+import Data.Yarr.Repr.Delayed
 
-import Data.Yarr.Utils.FixedVector as V hiding (toList)
+import Data.Yarr.Utils.FixedVector as V hiding (toList, zero)
 import Data.Yarr.Utils.Fork
 import Data.Yarr.Utils.Parallel
 
+anyReduceInner
+    :: (USource r l sh a, MultiShape sh lsh, WorkIndex sh i)
+    => StatefulWalk i a b
+    -> (lsh -> IO b)
+    -> UArray r l sh a
+    -> UArray D SH lsh b
+{-# INLINE anyReduceInner #-}
+anyReduceInner fold getZ arr =
+    ShapeDelayed (lower sh) (touchArray arr) (force arr) ix
+  where
+    sh = extent arr
+    ix lsh =
+        fold (getZ lsh) (gindex arr)
+             (toWork (combine lsh 0))
+             (toWork (combine (inc lsh) (inner sh)))
 
 anyWalk
     :: (USource r l sh a, WorkIndex sh i)

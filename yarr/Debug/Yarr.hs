@@ -18,7 +18,7 @@ import Text.Printf
 
 import Data.Yarr.Base hiding (fmap)
 import Data.Yarr.Shape
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector as V hiding (zero)
 
 -- | Yarr something to stderr.
 yarr :: String -> IO ()

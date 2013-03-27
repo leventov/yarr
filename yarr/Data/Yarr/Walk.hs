@@ -1,11 +1,11 @@
 
 module Data.Yarr.Walk (
     -- * Fold combinators
-    -- | See source of these 4 functions
-    -- to construct more similar ones,
-    -- if you need.
-    reduceL, reduceLeftM,
-    reduceR, reduceRightM,
+    reduceL, ireduceL, reduceLeftM,
+    reduceR, ireduceR, reduceRightM,
+
+    -- * Inner dim reducers
+    reduceInner, ireduceInner,
 
     -- * Combinators to walk with mutable state
     -- | Added specially to improve performance
@@ -29,11 +29,12 @@ module Data.Yarr.Walk (
 import Data.Yarr.Base
 import Data.Yarr.Shape as S
 import Data.Yarr.Eval
+import Data.Yarr.Repr.Delayed
 
 import Data.Yarr.Walk.Internal
 
 
--- | /O(0)/
+-- | /O(1)/
 reduceLeftM
     :: Foldl i a b        -- ^ 'S.foldl' or curried 'S.unrolledFoldl'
     -> (b -> a -> IO b)   -- ^ Monadic left reduce
@@ -42,7 +43,7 @@ reduceLeftM
 {-# INLINE reduceLeftM #-}
 reduceLeftM foldl rf = foldl (\b _ a -> rf b a)
 
--- | /O(0)/
+-- | /O(1)/
 reduceL
     :: Foldl i a b        -- ^ 'S.foldl' or curried 'S.unrolledFoldl'
     -> (b -> a -> b)      -- ^ Pure left reduce
@@ -51,7 +52,16 @@ reduceL
 {-# INLINE reduceL #-}
 reduceL foldl rf = foldl (\b _ a -> return $ rf b a)
 
--- | /O(0)/
+-- | /O(1)/
+ireduceL
+    :: Foldl i a b        -- ^ 'S.foldl' or curried 'S.unrolledFoldl'
+    -> (b -> i -> a -> b) -- ^ Pure indexed left reduce
+    -> StatefulWalk i a b -- ^ Result stateful walk to be passed
+                          -- to walk runners
+{-# INLINE ireduceL #-}
+ireduceL foldl rf = foldl (\b i a -> return $ rf b i a)
+
+-- | /O(1)/
 reduceRightM
     :: Foldr i a b         -- ^ 'S.foldr' or curried 'S.unrolledFoldr'
     -> (a -> b -> IO b)    -- ^ Monadic right reduce
@@ -60,7 +70,7 @@ reduceRightM
 {-# INLINE reduceRightM #-}
 reduceRightM foldr rf = foldr (\_ a b -> rf a b)
 
--- | /O(0)/
+-- | /O(1)/
 reduceR
     :: Foldr i a b        -- ^ 'S.foldr' or curried 'S.unrolledFoldr'
     -> (a -> b -> b)      -- ^ Pure right reduce
@@ -69,8 +79,17 @@ reduceR
 {-# INLINE reduceR #-}
 reduceR foldr rf = foldr (\_ a b -> return $ rf a b)
 
+-- | /O(1)/
+ireduceR
+    :: Foldr i a b        -- ^ 'S.foldr' or curried 'S.unrolledFoldr'
+    -> (i -> a -> b -> b) -- ^ Pure indexed right reduce
+    -> StatefulWalk i a b -- ^ Result stateful walk to be passed
+                          -- to walk runners
+{-# INLINE ireduceR #-}
+ireduceR foldr rf = foldr (\i a b -> return $ rf i a b)
 
--- | /O(0)/
+
+-- | /O(1)/
 mutate
     :: Fill i a           -- ^ 'S.fill' or curried 'S.unrolledFill'.
                           -- If mutating is associative,
@@ -82,7 +101,7 @@ mutate
 {-# INLINE mutate #-}
 mutate fill mf = imutate fill (\s i -> mf s)
 
--- | /O(0)/ Version of 'mutate', accepts mutating function
+-- | /O(1)/ Version of 'mutate', accepts mutating function
 -- which additionaly accepts array index.
 imutate
     :: Fill i a               -- ^ 'S.fill' or curried 'S.unrolledFill'.
@@ -97,6 +116,25 @@ imutate fill imf ms index start end = do
     fill index (imf s) start end
     return s
 
+-- | /O(1)/
+reduceInner
+    :: (USource r l sh a, MultiShape sh lsh, PreferredWorkIndex l sh i)
+    => StatefulWalk i a b
+    -> (lsh -> IO b)
+    -> UArray r l sh a
+    -> UArray D SH lsh b
+{-# INLINE reduceInner #-}
+reduceInner = anyReduceInner
+
+-- | /O(1)/
+ireduceInner
+    :: (USource r l sh a, MultiShape sh lsh)
+    => StatefulWalk sh a b
+    -> (lsh -> IO b)
+    -> UArray r l sh a
+    -> UArray D SH lsh b
+{-# INLINE ireduceInner #-}
+ireduceInner = anyReduceInner
 
 
 -- | /O(n)/ Walk with state,

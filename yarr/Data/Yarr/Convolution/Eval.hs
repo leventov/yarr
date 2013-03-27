@@ -7,7 +7,7 @@ import Data.Yarr.Shape as S
 import Data.Yarr.Convolution.Repr
 import Data.Yarr.Repr.Separate
 
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector as V hiding (zero)
 import Data.Yarr.Utils.Fork
 import Data.Yarr.Utils.Parallel
 import Data.Yarr.Utils.Split

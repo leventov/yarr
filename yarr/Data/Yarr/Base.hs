@@ -210,26 +210,29 @@ class (VecRegular tr tslr tl sh v e,
 -- | Internal implementation class. Generalizes @linear-@ and simple
 -- indexing and writing function in 'USource' and 'UTarget' classes.
 class (Shape sh, Shape i) => WorkIndex sh i where
+    toWork :: sh -> i
     gindex :: USource r l sh a => UArray r l sh a -> i -> IO a
     gwrite :: UTarget tr tl sh a => UArray tr tl sh a -> i -> a -> IO ()
     gsize :: USource r l sh a => UArray r l sh a -> i
+    gsize = toWork. extent
+    {-# INLINE gsize #-}
 
 instance Shape sh => WorkIndex sh sh where
+    toWork = id
     gindex = index
     gwrite = write
-    gsize = extent
     {-# INLINE gindex #-}
     {-# INLINE gwrite #-}
-    {-# INLINE gsize #-}
+    
 
 #define WI_INT_INST(sh)           \
 instance WorkIndex sh Int where { \
+    toWork = size;                \
     gindex = linearIndex;         \
     gwrite = linearWrite;         \
-    gsize = size . extent;        \
+    {-# INLINE toWork #-};        \
     {-# INLINE gindex #-};        \
     {-# INLINE gwrite #-};        \
-    {-# INLINE gsize #-};         \
 }
 
 WI_INT_INST(Dim2)

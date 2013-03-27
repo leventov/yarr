@@ -5,7 +5,7 @@ module Data.Yarr.Utils.FixedVector (
     Fn, arity,
     
     -- * Missed utility
-    zipWith3, zipWithM_, apply, all, any,
+    zipWith3, zipWithM_, apply, all, any, zero,
     iifoldl, iifoldM,
 
     -- * Aliases and shortcuts
@@ -27,7 +27,9 @@ module Data.Yarr.Utils.FixedVector (
 
 ) where
 
-import Prelude hiding (foldl, zipWith, zipWith3, all, any, sequence_)
+import Prelude hiding (
+    foldl, zipWith, zipWith3,
+    all, any, sequence_, replicate)
 
 import Control.DeepSeq
 
@@ -92,6 +94,10 @@ all p = foldl (\a x -> a && (p x)) True
 any :: Vector v a => (a -> Bool) -> v a -> Bool
 {-# INLINE any #-}
 any p = foldl (\a x -> a || (p x)) False
+
+zero :: (Vector v a, Num a) => v a
+{-# INLINE zero #-}
+zero = replicate 0
 
 
 iifoldl

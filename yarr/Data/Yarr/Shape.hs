@@ -5,7 +5,7 @@ module Data.Yarr.Shape (
     module Data.Yarr.WorkTypes,
 
     -- * Shape and BlockShape
-    Block, Shape(..), BlockShape(..),
+    Block, Shape(..), BlockShape(..), MultiShape(..),
 
     -- * Shape instances
     Dim1, Dim2, Dim3,
@@ -40,6 +40,7 @@ class (Eq sh, Bounded sh, Show sh, NFData sh) => Shape sh where
     zero :: sh
     -- | 'Dim1' @size@ is 'id', @size (3, 5) == 15@
     size :: sh -> Int
+    inc :: sh -> sh
     -- | @(1, 2, 3) \`plus\` (0, 0, 1) == (1, 2, 4)@
     plus :: sh -> sh -> sh
     -- | @(1, 2) \`minus\` (1, 0) == (0, 2)@ 
@@ -141,12 +142,18 @@ class (Shape sh, Arity (BorderCount sh)) => BlockShape sh where
         -> VecList (BorderCount sh) (Block sh) -- ^ Shavings
 
 
+class (Shape sh, Shape lsh) => MultiShape sh lsh | sh -> lsh, lsh -> sh where
+    lower :: sh -> lsh
+    inner :: sh -> Int
+    combine :: lsh -> Int -> sh
+
 
 type Dim1 = Int
 
 instance Shape Dim1 where
     zero = 0
     size = id
+    inc = succ
     plus = (+)
     offset off i = i - off
     fromLinear _ i = i
@@ -183,6 +190,7 @@ instance Shape Dim1 where
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
+    {-# INLINE inc #-}
     {-# INLINE plus #-}
     {-# INLINE offset #-}
     {-# INLINE fromLinear #-}
@@ -218,6 +226,7 @@ type Dim2 = (Int, Int)
 instance Shape Dim2 where
     zero = (0, 0)
     size (h, w) = h * w
+    inc (h, w) = (h, w + 1)
     plus (y1, x1) (y2, x2) = (y1 + y2, x1 + x2)
     offset (offY, offX) (y, x) = (y - offY, x - offX)
     fromLinear (_, w) i = i `quotRem` w
@@ -347,6 +356,7 @@ instance Shape Dim2 where
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
+    {-# INLINE inc #-}
     {-# INLINE plus #-}
     {-# INLINE offset #-}
     {-# INLINE fromLinear #-}
@@ -377,6 +387,14 @@ instance BlockShape Dim2 where
                  ((osy, osx), (iey, isx)))
 
     {-# INLINE clipBlock #-}
+
+instance MultiShape Dim2 Dim1 where
+    lower = fst
+    inner = snd
+    combine = (,)
+    {-# INLINE lower #-}
+    {-# INLINE inner #-}
+    {-# INLINE combine #-}
 
 -- | 2D-unrolled filling to maximize profit from
 -- \"Global value numbering\" LLVM optimization.
@@ -436,6 +454,7 @@ type Dim3 = (Int, Int, Int)
 instance Shape Dim3 where
     zero = (0, 0, 0)
     size (d, h, w) = d * h * w
+    inc (d, h, w) = (d, h, w + 1)
     plus (z1, y1, x1) (z2, y2, x2) = (z1 + z2, y1 + y2, x1 + x2)
     offset (offZ, offY, offX) (z, y, x) = (z - offZ, y - offY, x - offX)
     fromLinear (_, h, w) i =
@@ -562,6 +581,7 @@ instance Shape Dim3 where
 
     {-# INLINE zero #-}
     {-# INLINE size #-}
+    {-# INLINE inc #-}
     {-# INLINE plus #-}
     {-# INLINE offset #-}
     {-# INLINE fromLinear #-}
@@ -579,3 +599,11 @@ instance Shape Dim3 where
     {-# INLINE unrolledFoldl #-}
     {-# INLINE foldr #-}
     {-# INLINE unrolledFoldr #-}
+
+instance MultiShape Dim3 Dim2 where
+    lower (z, y, _) = (z, y)
+    inner (_, _, x) = x
+    combine (z, y) x = (z, y, x)
+    {-# INLINE lower #-}
+    {-# INLINE inner #-}
+    {-# INLINE combine #-}
