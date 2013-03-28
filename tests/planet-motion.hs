@@ -115,10 +115,9 @@ initRs = Y.fromList nBodies [earthR, jupiterR, sunR]
 initMasses :: IO (Masses F)
 initMasses = Y.fromList nBodies [earthMass, jupiterMass, sunMass]
 
-stepOnce :: Masses F -> Positions F -> Velocities F -> Forces F -> IO ()
-stepOnce ms ps vs fs = do
-    loadS S.fill (forces ps ms) fs
-    loadS S.fill (stepVelocity timeStep vs fs ms) vs
+stepOnce :: Masses F -> Positions F -> Velocities F -> IO ()
+stepOnce ms ps vs = do
+    loadS S.fill (stepVelocity timeStep vs (forces ps ms) ms) vs
     loadS S.fill (stepPosition timeStep ps vs) ps
 
 main :: IO ()
@@ -127,8 +126,7 @@ main = do
     vs <- initVs
     ps <- initRs
     ms <- initMasses
-    fs <- new nBodies
-    replicateM_ nSteps $ stepOnce ms ps vs fs
+    replicateM_ nSteps $ stepOnce ms ps vs
     posList <- Y.toList ps
     speedList <- Y.toList vs
     print (posList, speedList)
