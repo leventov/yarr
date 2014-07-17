@@ -8,12 +8,13 @@ module Data.Yarr.Repr.Foreign (
     --
     -- See source of "Data.Yarr.Repr.Foreign" module.
     UArray(..),
-    
+
     Storable, L,
     newEmpty,
     toForeignPtr, unsafeFromForeignPtr,
 ) where
 
+import Control.Monad.IO.Class
 import Foreign
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
@@ -53,12 +54,12 @@ instance Shape sh => Regular F L sh a where
             {-# NOUNPACK #-}
             !(ForeignPtr a)  -- Foreign ptr for GC
             !(Ptr a)         -- Plain ptr for fast memory access
-    
+
     extent (ForeignArray sh _ _) = sh
-    touchArray (ForeignArray _ fptr _) = touchForeignPtr fptr
-    
+    touchArray (ForeignArray _ fptr _) = liftIO $ touchForeignPtr fptr
+
     {-# INLINE extent #-}
-    {-# INLINE touchArray #-}    
+    {-# INLINE touchArray #-}
 
 instance Shape sh => NFData (UArray F L sh a) where
     rnf (ForeignArray sh fptr ptr) = sh `deepseq` fptr `seq` ptr `seq` ()
@@ -107,10 +108,10 @@ instance Shape sh => Regular FS L sh e where
             {-# NOUNPACK #-}
             !(ForeignPtr e)  -- Foreign ptr for GC
             !(Ptr e)         -- Plain ptr for fast memory access
-    
+
     extent (ForeignSlice sh _ _ _) = sh
-    touchArray (ForeignSlice _ _ fptr _) = touchForeignPtr fptr
-    
+    touchArray (ForeignSlice _ _ fptr _) = liftIO $ touchForeignPtr fptr
+
     {-# INLINE extent #-}
     {-# INLINE touchArray #-}
 
@@ -153,13 +154,13 @@ instance (Shape sh, Storable a) => Manifest F F L sh a where
 
     freeze = return
     thaw = return
-    
+
     {-# INLINE new #-}
     {-# INLINE freeze #-}
     {-# INLINE thaw #-}
 
 -- | /O(1)/ allocates zero-initialized foreign array.
--- 
+--
 -- Needed because common 'new' function allocates array with garbage.
 newEmpty :: (Shape sh, Storable a, Integral a) => sh -> IO (UArray F L sh a)
 {-# INLINE newEmpty #-}
@@ -201,7 +202,7 @@ toForeignPtr :: Shape sh => UArray F L sh a -> ForeignPtr a
 toForeignPtr (ForeignArray _ fptr _) = fptr
 
 -- | /O(1)/ Wraps foreign ptr into foreign array.
--- 
+--
 -- The function is unsafe because it simply don't (and can't)
 -- check anything about correctness of produced array.
 unsafeFromForeignPtr :: Shape sh => sh -> ForeignPtr a -> IO (UArray F L sh a)

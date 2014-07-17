@@ -8,10 +8,10 @@ module Data.Yarr.Base (
 
     -- * Shape class
     Shape,
-    
-    -- * Fixed vector 
+
+    -- * Fixed vector
     Dim, Arity, Fun, Vector, VecList,
-    
+
     -- * Source classes
     USource(..),
     UVecSource(..),
@@ -27,6 +27,7 @@ module Data.Yarr.Base (
 import Prelude as P
 
 import Control.DeepSeq
+import Control.Monad.IO.Class
 
 import Data.Yarr.Shape as S
 import Data.Yarr.Utils.FixedVector as V
@@ -58,14 +59,14 @@ class (NFData (UArray r l sh a), Shape sh) => Regular r l sh a where
     -- In other manifest representations, the function defined as @return ()@.
     -- 'touchArray' is lifted to top level in class hierarchy
     -- because in fact foreign representation is the heart of the library.
-    touchArray :: UArray r l sh a -> IO ()
+    touchArray :: MonadIO m => UArray r l sh a -> m ()
 
     -- | /O(1)/ Ensures that array /and all it's real manifest sources/
     -- are fully evaluated.
     -- This function is not for people, it is for GHC compiler.
     --
     -- Default implementation: @force arr = arr \`deepseq\` return ()@
-    force :: UArray r l sh a -> IO ()
+    force :: MonadIO m => UArray r l sh a -> m ()
     force arr = arr `deepseq` return ()
     {-# INLINE force #-}
 
@@ -105,13 +106,13 @@ class (Regular r l sh (v e), Regular slr l sh e, Vector v e) =>
     slices :: UArray r l sh (v e) -> VecList (Dim v) (UArray slr l sh e)
 
 -- | Class for arrays which could be indexed.
--- 
--- 
+--
+--
 -- It's functions are unsafe: you /must/ call 'touchArray' after the last call.
 -- Fortunately, you will hardly ever need to call them manually.
 --
 -- Minimum complete defenition: 'index' or 'linearIndex'.
--- 
+--
 -- Counterpart for arrays of vectors: 'UVecSource'
 class Regular r l sh a => USource r l sh a where
 
@@ -124,7 +125,7 @@ class Regular r l sh a => USource r l sh a where
     -- @index arr sh = linearIndex arr $ 'toLinear' ('extent' arr) sh@
     index :: UArray r l sh a -> sh -> IO a
     index arr sh = linearIndex arr $ toLinear (extent arr) sh
-    
+
     -- | \"Surrogate\" linear index.
     -- For 'Dim1' arrays @index == linearIndex@.
     --
@@ -159,14 +160,14 @@ class Regular tr tl sh a => UTarget tr tl sh a where
     -- @write tarr sh = linearWrite tarr $ 'toLinear' ('extent' tarr) sh@
     write :: UArray tr tl sh a -> sh -> a -> IO ()
     write tarr sh = linearWrite tarr $ toLinear (extent tarr) sh
-    
+
     -- | Fast (usually), linear indexing. Intented to be used internally.
     --
     -- Default implementation:
     -- @linearWrite tarr i = write tarr $ 'fromLinear' ('extent' tarr) i@
     linearWrite :: UArray tr tl sh a -> Int -> a -> IO ()
     linearWrite tarr i = write tarr $ fromLinear (extent tarr) i
-    
+
     {-# INLINE write #-}
     {-# INLINE linearWrite #-}
 
@@ -174,7 +175,7 @@ class Regular tr tl sh a => UTarget tr tl sh a where
 -- It combines a pair of representations: freezed and mutable (raw).
 -- This segregation is lifted from Boxed representation
 -- and, in the final, from GHC system of primitive arrays.
--- 
+--
 -- Parameters:
 --
 --  * @r@ - freezed array representation.
@@ -223,7 +224,7 @@ instance Shape sh => WorkIndex sh sh where
     gwrite = write
     {-# INLINE gindex #-}
     {-# INLINE gwrite #-}
-    
+
 
 #define WI_INT_INST(sh)           \
 instance WorkIndex sh Int where { \

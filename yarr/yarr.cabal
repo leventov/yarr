@@ -1,113 +1,82 @@
-Name:                yarr
-Version:             1.3.2
-Synopsis:            Yet another array library
-Description:
-    Yarr is a new blazing fast dataflow framework (array library),
-    mainly intented to process @Storable@s (including all \"primitive\" numeric types)
-    and @fixed-vector@s of them, for example coordinates,
-    color components, complex numbers.
-    .
-    Yarr framework is inspired by @repa@ library and inherits its features,
-    including shape-polymorphism and auto-parallelism.
-    Additionaly, the framework is polymorphic over type and arity
-    of fixed-size vectors and supports neat flow operations over them.
-    For example, you can convert colored image to greyscale like this:
-    .
-    > let greyImage = zipElems (\r g b -> 0.21 * r + 0.71 * g + 0.07 * b) image
-    .
-    In some cases the library is considerably faster than @repa@.
-    See benchmark results: <https://github.com/leventov/yarr/blob/master/tests/bench-results.md>
-    .
-    Shortcoming by design: lack of pure indexing interface.
-    .
-    /Changes in 1.3 (ex. 0.9.3):/
-    .
-        * IFusion -- mapping/zipping with index
-    .
-        * Rename: Work -> Walk
-    .
-    /Changes in version 0.9.2:/
-    .
-        * Safe folds -- see "Data.Yarr.Walk"
-    .
-        * Issue with slice-wise loading with unrolled filling function solved
-    .
-    To start with, read documentation in the root module: "Data.Yarr".
-    .
-    [@Yarr!@] 
-
-License:             MIT
-License-file:        LICENSE
-Author:              Roman Leventov
-Maintainer:          Roman Leventov <leventov@ya.ru>
-Bug-reports:         https://github.com/leventov/yarr/issues
-Category:            Data Structures, Data Flow, Graphics
-Build-type:          Simple
-Cabal-version:       >= 1.8
-
+name: yarr
+version: 1.3.2
+cabal-version: >=1.8
+build-type: Simple
+license: MIT
+license-file: LICENSE
+maintainer: Roman Leventov <leventov@ya.ru>
+bug-reports: https://github.com/leventov/yarr/issues
+synopsis: Yet another array library
+description: Yarr is a new blazing fast dataflow framework (array library),
+             mainly intented to process @Storable@s (including all \"primitive\" numeric types)
+             and @fixed-vector@s of them, for example coordinates,
+             color components, complex numbers.
+             .
+             Yarr framework is inspired by @repa@ library and inherits its features,
+             including shape-polymorphism and auto-parallelism.
+             Additionaly, the framework is polymorphic over type and arity
+             of fixed-size vectors and supports neat flow operations over them.
+             For example, you can convert colored image to greyscale like this:
+             .
+             > let greyImage = zipElems (\r g b -> 0.21 * r + 0.71 * g + 0.07 * b) image
+             .
+             In some cases the library is considerably faster than @repa@.
+             See benchmark results: <https://github.com/leventov/yarr/blob/master/tests/bench-results.md>
+             .
+             Shortcoming by design: lack of pure indexing interface.
+             .
+             /Changes in 1.3 (ex. 0.9.3):/
+             .
+             * IFusion -- mapping/zipping with index
+             .
+             * Rename: Work -> Walk
+             .
+             /Changes in version 0.9.2:/
+             .
+             * Safe folds -- see "Data.Yarr.Walk"
+             .
+             * Issue with slice-wise loading with unrolled filling function solved
+             .
+             To start with, read documentation in the root module: "Data.Yarr".
+             .
+             [@Yarr!@]
+category: Data Structures, Data Flow, Graphics
+author: Roman Leventov
+data-dir: ""
+ 
 source-repository head
-    type:     git
+    type: git
     location: https://github.com/leventov/yarr.git
-    subdir:   yarr
-
-Library
-    build-depends:
-        base             == 4.6.*,
-        ghc-prim         == 0.3.*,
-        deepseq          == 1.3.*,
-        fixed-vector     == 0.1.2.1,
-        primitive        >= 0.2 && < 0.6,
-        template-haskell == 2.8.*,
-        missing-foreign  == 0.1.1
-
-    extensions:
-        TypeFamilies, MultiParamTypeClasses, FunctionalDependencies,
-        FlexibleContexts,
-        EmptyDataDecls,
-        FlexibleInstances, TypeSynonymInstances,
-        UndecidableInstances, OverlappingInstances,
-        GeneralizedNewtypeDeriving, StandaloneDeriving,
-        RankNTypes, ScopedTypeVariables,
-        MagicHash, BangPatterns, UnboxedTuples,
-        TemplateHaskell, CPP
-
-    exposed-modules:
-        Data.Yarr
-        Data.Yarr.Base
-        Data.Yarr.Fusion
-        Data.Yarr.Eval
-        Data.Yarr.Flow
-        Data.Yarr.Walk
-        Data.Yarr.Shape
-        Data.Yarr.Repr.Foreign
-        Data.Yarr.Repr.Boxed
-        Data.Yarr.Repr.Delayed
-        Data.Yarr.Repr.Separate
-        Data.Yarr.Convolution
-        Data.Yarr.IO.List
-        Data.Yarr.Utils.FixedVector
-        Data.Yarr.Utils.Fork
-        Data.Yarr.Utils.Parallel
-        Data.Yarr.Utils.Split
-        Data.Yarr.Utils.Primitive
-        Debug.Yarr
-
-    other-modules:
-        -- re-exported in Utils.FixedVector
-        Data.Yarr.Utils.FixedVector.Arity
-        Data.Yarr.Utils.FixedVector.VecTuple
-        Data.Yarr.Utils.FixedVector.VecTupleInstances
-        Data.Yarr.Utils.FixedVector.InlinableArity
-        Data.Yarr.Utils.FixedVector.InlinableArityInstances
-
-        -- re-exported in Data.Yarr.Convolution
-        Data.Yarr.Convolution.Repr
-        Data.Yarr.Convolution.Eval
-        Data.Yarr.Convolution.StaticStencils
-
-        -- re-exported in Data.Yarr.Shape
-        Data.Yarr.WorkTypes
-
-        Data.Yarr.Walk.Internal
-        Data.Yarr.Utils.Storable
-        Data.Yarr.Utils.LowLevelFlow
+    subdir: yarr
+ 
+library
+    build-depends: base ==4.6.*, deepseq ==1.3.*,
+                   fixed-vector ==0.1.2.1, ghc-prim ==0.3.*, missing-foreign ==0.1.1,
+                   primitive >=0.2 && <0.6, template-haskell ==2.8.*,
+                   transformers >=0.2
+    exposed-modules: Data.Yarr Data.Yarr.Base Data.Yarr.Convolution
+                     Data.Yarr.Eval Data.Yarr.Flow Data.Yarr.Fusion Data.Yarr.IO.List
+                     Data.Yarr.Repr.Boxed Data.Yarr.Repr.Delayed Data.Yarr.Repr.Foreign
+                     Data.Yarr.Repr.Separate Data.Yarr.Shape Data.Yarr.Utils.FixedVector
+                     Data.Yarr.Utils.Fork Data.Yarr.Utils.Parallel
+                     Data.Yarr.Utils.Primitive Data.Yarr.Utils.Split Data.Yarr.Walk
+                     Debug.Yarr
+    exposed: True
+    buildable: True
+    extensions: OverlappingInstances UndecidableInstances
+                MultiParamTypeClasses FunctionalDependencies RankNTypes
+                ScopedTypeVariables FlexibleContexts FlexibleInstances
+                EmptyDataDecls CPP BangPatterns TypeSynonymInstances
+                TemplateHaskell GeneralizedNewtypeDeriving MagicHash TypeFamilies
+                StandaloneDeriving UnboxedTuples
+    hs-source-dirs: .
+    other-modules: Data.Yarr.WorkTypes
+                   Data.Yarr.Convolution.StaticStencils Data.Yarr.Convolution.Eval
+                   Data.Yarr.Convolution.Repr Data.Yarr.Utils.LowLevelFlow
+                   Data.Yarr.Utils.Storable Data.Yarr.Utils.FixedVector.InlinableArity
+                   Data.Yarr.Utils.FixedVector.VecTupleInstances
+                   Data.Yarr.Utils.FixedVector.Arity
+                   Data.Yarr.Utils.FixedVector.VecTuple
+                   Data.Yarr.Utils.FixedVector.InlinableArityInstances
+                   Data.Yarr.Walk.Internal
+ 

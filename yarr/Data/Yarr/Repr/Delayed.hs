@@ -22,6 +22,7 @@ module Data.Yarr.Repr.Delayed (
 
 import Prelude as P
 import Control.Monad
+import Control.Monad.IO.Class
 
 import Data.Yarr.Base
 import Data.Yarr.Fusion as F
@@ -47,9 +48,9 @@ instance Shape sh => Regular D L sh a where
             (Int -> IO a) -- Linear get
 
     extent (LinearDelayed sh _ _ _) = sh
-    touchArray (LinearDelayed _ tch _ _) = tch
+    touchArray (LinearDelayed _ tch _ _) = liftIO tch
     force (LinearDelayed sh _ iforce _) =
-        (sh `deepseq` return ()) >> iforce
+        (sh `deepseq` return ()) >> liftIO iforce
 
     {-# INLINE extent #-}
     {-# INLINE touchArray #-}
@@ -143,8 +144,8 @@ instance Shape sh => Regular D SH sh a where
             (sh -> IO a)  -- Shape get
 
     extent (ShapeDelayed sh _ _ _) = sh
-    touchArray (ShapeDelayed _ tch _ _) = tch
-    force (ShapeDelayed sh _ iforce _) = (sh `deepseq` return ()) >> iforce
+    touchArray (ShapeDelayed _ tch _ _) = liftIO tch
+    force (ShapeDelayed sh _ iforce _) = (sh `deepseq` return ()) >> liftIO iforce
 
     {-# INLINE extent #-}
     {-# INLINE touchArray #-}
@@ -233,7 +234,7 @@ delay :: (USource r l sh a, USource D l sh a, Fusion r D l sh)
 delay = F.fmap id
 
 -- | Wrap indexing function into delayed representation.
--- 
+--
 -- Use this function carefully, don't implement through it something
 -- that has specialized implementation in the library (mapping, zipping, etc).
 --
@@ -294,9 +295,9 @@ instance Shape sh => Regular DT SH sh a where
             (sh -> a -> IO ()) -- Shape write
 
     extent (ShapeDelayedTarget sh _ _ _) = sh
-    touchArray (ShapeDelayedTarget _ tch _ _) = tch
+    touchArray (ShapeDelayedTarget _ tch _ _) = liftIO tch
     force (ShapeDelayedTarget sh _ iforce _) =
-        (sh `deepseq` return ()) >> iforce
+        (sh `deepseq` return ()) >> liftIO iforce
 
     {-# INLINE extent #-}
     {-# INLINE touchArray #-}

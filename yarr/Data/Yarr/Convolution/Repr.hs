@@ -7,6 +7,7 @@ module Data.Yarr.Convolution.Repr (
 
 import Prelude as P
 import Control.Monad
+import Control.Monad.IO.Class
 
 import Data.Yarr.Base
 import Data.Yarr.Shape
@@ -60,11 +61,11 @@ instance Shape sh => Regular CV CVL sh a where
         }
 
     extent = getExtent
-    touchArray = getTouch
+    touchArray = liftIO . getTouch
     force (Convoluted sh _ iforce _ center _) = do
         sh `deepseq` return ()
         center `deepseq` return ()
-        iforce
+        liftIO iforce
 
     {-# INLINE extent #-}
     {-# INLINE touchArray #-}
@@ -78,7 +79,7 @@ instance Shape sh => Regular CV CVL sh a where
 justCenter :: Shape sh => UArray CV CVL sh a -> UArray D SH sh a
 {-# INLINE justCenter #-}
 justCenter (Convoluted sh tch iforce _ (tl, br) cget) =
-    ShapeDelayed (tl `offset` br) tch iforce (cget . (`plus` tl)) 
+    ShapeDelayed (tl `offset` br) tch iforce (cget . (`plus` tl))
 
 instance Shape sh => NFData (UArray CV CVL sh a) where
     rnf (Convoluted sh tch iforce bget center cget) =
