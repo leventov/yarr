@@ -1,4 +1,9 @@
 
+{-# LANGUAGE CPP #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+
 module Data.Yarr.Utils.FixedVector.VecTupleInstances where
 
 import Data.Vector.Fixed

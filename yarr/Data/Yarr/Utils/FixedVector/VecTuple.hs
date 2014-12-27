@@ -42,8 +42,8 @@ makeVecTupleInstance arityType a = do
     let vn = (conT ''VecTuple) `appT` arityType
         vt = vn `appT` e
 
-    dimInst <- tySynInstD ''Dim [vn] arityType
-        
+    dimInst <- tySynInstD ''Dim (tySynEqn [vn] arityType)
+
     let as = [mkName $ "a" ++ (show i) | i <- [1..n]]
         pas = fmap varP as
         eas = fmap varE as

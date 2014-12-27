@@ -88,24 +88,24 @@ class PrimitiveOrd a where
 #define PRIM_COMP_INST(ty,con,le,ge)                                 \
 instance PrimitiveOrd ty where {                                     \
     minM (con a#) (con b#) =                                         \
-        IO (\s -> seq# (con (if le a# b# then a# else b#)) s);       \
+        IO (\s -> seq# (con (if isTrue# (le a# b#) then a# else b#)) s);       \
     minM' (con a#) (con b#) =                                        \
         IO (\s ->                                                    \
-            let r# = if le a# b# then a# else b#                     \
+            let r# = if isTrue# (le a# b#) then a# else b#                     \
             in case touch# r# s of s' -> (# s', (con r#) #));        \
     maxM (con a#) (con b#) =                                         \
-        IO (\s -> seq# (con (if ge a# b# then a# else b#)) s);       \
+        IO (\s -> seq# (con (if isTrue# (ge a# b#) then a# else b#)) s);       \
     maxM' (con a#) (con b#) =                                        \
         IO (\s ->                                                    \
-            let r# = if ge a# b# then a# else b#                     \
+            let r# = if isTrue# (ge a# b#) then a# else b#                     \
             in case touch# r# s of s' -> (# s', (con r#) #));        \
     clampM (con mn#) (con mx#) (con x#) =                            \
-        IO (\s -> seq# (con (if le x# mx#                            \
-                                then (if ge x# mn# then x# else mn#) \
+        IO (\s -> seq# (con (if isTrue# (le x# mx#)                            \
+                                then (if isTrue# (ge x# mn#) then x# else mn#) \
                                 else mx#)) s);                       \
     clampM' (con mn#) (con mx#) (con x#) =                           \
-        IO (\s -> let r# = if le x# mx#                              \
-                                then (if ge x# mn# then x# else mn#) \
+        IO (\s -> let r# = if isTrue# (le x# mx#)                              \
+                                then (if isTrue# (ge x# mn#) then x# else mn#) \
                                 else mx#                             \
                   in case touch# r# s of s' -> (# s', (con r#) #));  \
     {-# INLINE minM #-};                                             \

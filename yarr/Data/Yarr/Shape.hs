@@ -275,12 +275,12 @@ instance Shape Dim2 where
                 let limX# = ex# -# uf#
                     {-# INLINE goY# #-}
                     goY# y#
-                        | y# >=# ey#   = return ()
+                        | isTrue# (y# >=# ey#)   = return ()
                         | otherwise    = do
                             let y = I# y#
                                 {-# INLINE goX# #-}
                                 goX# x#
-                                    | x# ># limX# =
+                                    | isTrue# (x# ># limX#) =
                                         fill#
                                             (\x -> get (y, x))
                                             (\x a -> write (y, x) a)
@@ -420,7 +420,7 @@ dim2BlockFill blockSizeX blockSizeY tch =
             limY# = ey# -# by#
 
             {-# INLINE goY# #-}
-            goY# y# | y# ># limY# = fill get write ((I# y#), sx) end
+            goY# y# | isTrue# (y# ># limY#) = fill get write ((I# y#), sx) end
                    | otherwise    = do
                         let y = I# y#
                             ys :: VecList bsy Int
@@ -428,7 +428,7 @@ dim2BlockFill blockSizeX blockSizeY tch =
 
                             {-# INLINE go# #-}
                             go# x#
-                                | x# ># limX# =
+                                | isTrue# (x# ># limX#) =
                                     fill get write
                                          (y, (I# x#)) (I# (y# +# by#), ex)
                                 | otherwise   = do

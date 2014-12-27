@@ -1,3 +1,16 @@
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+
+        -- TypeFamilies, MultiParamTypeClasses, FunctionalDependencies,
+        -- FlexibleContexts,
+        -- EmptyDataDecls,
+        -- FlexibleInstances, TypeSynonymInstances,
+        -- UndecidableInstances, OverlappingInstances,
+        -- GeneralizedNewtypeDeriving, StandaloneDeriving,
+        -- RankNTypes, ScopedTypeVariables,
+        -- MagicHash, BangPatterns, UnboxedTuples,
+        -- TemplateHaskell, CPP
 
 module Data.Yarr.Utils.FixedVector (
     -- * Fixed Vector  

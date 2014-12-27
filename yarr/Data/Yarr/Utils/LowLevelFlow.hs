@@ -13,7 +13,7 @@ fill# :: (Int -> IO a)
 fill# get write start# end# =
     let {-# INLINE go# #-}
         go# i#
-            | i# >=# end# = return ()
+            | isTrue# (i# >=# end#) = return ()
             | otherwise   = do
                 let i = (I# i#)
                 a <- get i
@@ -35,7 +35,7 @@ unrolledFill# unrollFactor tch get write start# end# =
         lim# = end# -# uf#
         {-# INLINE go# #-}
         go# i#
-            | i# ># lim# = fill# get write i# end#
+            | isTrue# (i# ># lim#) = fill# get write i# end#
             | otherwise  = do
                 let is :: VecList uf Int
                     is = V.generate (+ (I# i#))
@@ -57,7 +57,7 @@ foldl#
 foldl# reduce mz get start# end# =
     let {-# INLINE go# #-}
         go# !b i#
-            | i# >=# end# = return b
+            | isTrue# (i# >=# end#) = return b
             | otherwise   = do
                 let i = (I# i#)
                 a <- get i
@@ -81,7 +81,7 @@ unrolledFoldl# unrollFactor tch reduce mz get start# end# =
         lim# = end# -# uf#
         {-# INLINE go# #-}
         go# !b i#
-            | i# ># lim# = rest# b i#
+            | isTrue# (i# ># lim#) = rest# b i#
             | otherwise  = do
                 let is :: VecList uf Int
                     is = V.generate (+ (I# i#))
@@ -94,7 +94,7 @@ unrolledFoldl# unrollFactor tch reduce mz get start# end# =
 
         {-# INLINE rest# #-}
         rest# !b i#
-            | i# >=# end# = return b
+            | isTrue# (i# >=# end#) = return b
             | otherwise   = do
                 let i = (I# i#)
                 a <- get i
@@ -116,7 +116,7 @@ foldr#
 foldr# reduce mz get start# end# =
     let {-# INLINE go# #-}
         go# !b i#
-            | i# <# start# = return b
+            | isTrue# (i# <# start#) = return b
             | otherwise    = do
                 let i = (I# i#)
                 a <- get i
@@ -140,7 +140,7 @@ unrolledFoldr# unrollFactor tch reduce mz get start# end# =
         lim# = start# +# uf# -# 1#
         {-# INLINE go# #-}
         go# !b i#
-            | i# <# lim# = rest# b i#
+            | isTrue# (i# <# lim#) = rest# b i#
             | otherwise  = do
                 let is :: VecList uf Int
                     is = V.generate ((I# i#) -)
@@ -153,7 +153,7 @@ unrolledFoldr# unrollFactor tch reduce mz get start# end# =
 
         {-# INLINE rest# #-}
         rest# !b i#
-            | i# <# start# = return b
+            | isTrue# (i# <# start#) = return b
             | otherwise    = do
                 let i = (I# i#)
                 a <- get i
