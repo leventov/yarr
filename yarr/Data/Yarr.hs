@@ -1,3 +1,9 @@
+{-# OPTIONS_GHC -Wall                     #-}
+{-# OPTIONS_GHC -fno-warn-name-shadowing  #-}
+{-# OPTIONS_GHC -fno-warn-type-defaults   #-}
+{-# OPTIONS_GHC -fno-warn-unused-do-bind  #-}
+{-# OPTIONS_GHC -fno-warn-missing-methods #-}
+{-# OPTIONS_GHC -fno-warn-orphans         #-}
 
 {- | /Type system intro:/
 
@@ -166,7 +172,7 @@ module Data.Yarr (
     Dim1, Dim2, Dim3,
 
     -- ** Fixed Vector
-    Fun(..), Vector(..), -- VecList(VecList),
+    Fun(..), Vector(..),
     N1, N2, N3, N4,
 
 
@@ -190,7 +196,7 @@ module Data.Yarr (
 
 ) where
 
-import Data.Yarr.Base hiding (Fusion(..))
+import Data.Yarr.Base
 import Data.Yarr.Eval
 import Data.Yarr.Flow hiding (D, delay, SE)
 import Data.Yarr.Shape
