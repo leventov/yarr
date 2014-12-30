@@ -27,7 +27,7 @@ import Data.Yarr.Base
 import Data.Yarr.Fusion as F
 import Data.Yarr.Eval
 import Data.Yarr.Shape
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector as V hiding ( index )
 
 -- | Delayed representation is a wrapper for arbitrary indexing function.
 --

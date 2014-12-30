@@ -6,8 +6,7 @@ module Data.Yarr.Utils.FixedVector.VecTuple (
 import Language.Haskell.TH
 
 import Data.Vector.Fixed (Dim(..), Arity(..), Fun(..), Vector(..))
-import Data.Vector.Fixed.Internal (arity)
-
+import Data.Vector.Fixed.Mutable ( arity )
 
 data family VecTuple n e
 

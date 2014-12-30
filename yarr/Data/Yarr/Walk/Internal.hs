@@ -146,6 +146,6 @@ anyRangeWalkSlicesSeparateP threads fold mz join arr start end = do
                 (V.map (\sl -> fold mz (gindex sl)) sls)
     touchArray arr
 
-    let rsBySlices = P.map (P.map snd) $ groupBy ((==) `on` fst) $ concat trs
+    let rsBySlices = P.map (P.map snd) $ groupBy ((==) `on` fst) $ P.concat trs
     rs <- M.mapM (\(r:rs) -> M.foldM join r rs) rsBySlices
-    return (VecList rs)
+    return undefined -- (P.foldr Cons Nil rs)

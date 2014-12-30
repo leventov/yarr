@@ -15,7 +15,7 @@
 module Data.Yarr.Utils.FixedVector (
     -- * Fixed Vector  
     module Data.Vector.Fixed,
-    Fn, arity,
+    Fun, arity,
     
     -- * Missed utility
     zipWith3, zipWithM_, apply, all, any, zero,
@@ -47,7 +47,8 @@ import Prelude hiding (
 import Control.DeepSeq
 
 import Data.Vector.Fixed
-import Data.Vector.Fixed.Internal hiding (apply)
+import Data.Vector.Fixed.Mutable ( inspectVec, IVector, arity )
+import Data.Vector.Fixed.Cont ( accum )
 
 import Data.Yarr.Utils.FixedVector.Arity
 
@@ -60,19 +61,19 @@ import Data.Yarr.Utils.FixedVector.InlinableArityInstances
 
 vl_1 :: a -> VecList N1 a
 {-# INLINE vl_1 #-}
-vl_1 a = VecList [a]
+vl_1 a = a `Cons` Nil
 
 vl_2 :: a -> a -> VecList N2 a
 {-# INLINE vl_2 #-}
-vl_2 a b = VecList [a, b]
+vl_2 a b = a `Cons` (b `Cons` Nil)
 
 vl_3 :: a -> a -> a -> VecList N3 a
 {-# INLINE vl_3 #-}
-vl_3 a b c = VecList [a, b, c]
+vl_3 a b c = a `Cons` (b `Cons` (c `Cons` Nil))
 
 vl_4 :: a -> a -> a -> a -> VecList N4 a
 {-# INLINE vl_4 #-}
-vl_4 a b c d = VecList [a, b, c, d]
+vl_4 a b c d = a `Cons` (b `Cons` (c `Cons` (d `Cons` Nil)))
 
 
 instance (Arity n, NFData e) => NFData (VecList n e) where
@@ -100,13 +101,13 @@ apply :: (Vector v a, Vector v (a -> b), Vector v b)
 {-# INLINE apply #-}
 apply = zipWith ($)
 
-all :: Vector v a => (a -> Bool) -> v a -> Bool
-{-# INLINE all #-}
-all p = foldl (\a x -> a && (p x)) True
+-- all :: Vector v a => (a -> Bool) -> v a -> Bool
+-- {-# INLINE all #-}
+-- all p = foldl (\a x -> a && (p x)) True
 
-any :: Vector v a => (a -> Bool) -> v a -> Bool
-{-# INLINE any #-}
-any p = foldl (\a x -> a || (p x)) False
+-- any :: Vector v a => (a -> Bool) -> v a -> Bool
+-- {-# INLINE any #-}
+-- any p = foldl (\a x -> a || (p x)) False
 
 zero :: (Vector v a, Num a) => v a
 {-# INLINE zero #-}
@@ -114,14 +115,14 @@ zero = replicate 0
 
 
 iifoldl
-    :: Vector v a
+    :: IVector v a
     => ix -> (ix -> ix)
     -> (b -> ix -> a -> b) -> b -> v a -> b
 {-# INLINE iifoldl #-}
-iifoldl st sc f z v = inspectV v $ gifoldlF st sc f z
+iifoldl st sc f z v = inspectVec v $ gifoldlF st sc f z
 
 iifoldM
-    :: (Vector v a, Monad m)
+    :: (IVector v a, Monad m)
     => ix -> (ix -> ix)
     -> (b -> ix -> a -> m b) -> b -> v a -> m b
 {-# INLINE iifoldM #-}

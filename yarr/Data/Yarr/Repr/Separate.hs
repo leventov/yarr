@@ -30,7 +30,7 @@ import Data.Yarr.Base as B
 import Data.Yarr.Fusion
 import Data.Yarr.Shape
 import Data.Yarr.Repr.Delayed
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector as V hiding ( index )
 
 -- | SEparate meta array representation. Internally SEparate arrays
 -- hold vector of it's slices (so, 'slices' is just getter for them).

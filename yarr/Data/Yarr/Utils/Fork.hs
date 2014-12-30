@@ -47,7 +47,7 @@ makeForkSlicesOnce !threads ranges rangeWorks =
                     let (start, end) = ranges V.! currSlice
                     in if (currSlice > endSlice) ||
                           (currSlice == endSlice && endPos == start)
-                        then return $ reverse results
+                        then return $ P.reverse results
                         else
                             let endInSl = if currSlice == endSlice
                                                 then endPos

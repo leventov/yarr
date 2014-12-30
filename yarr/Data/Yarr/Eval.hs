@@ -166,7 +166,7 @@ class Load r l tr tl sh a => RangeLoad r l tr tl sh a where
         force tarr
         !ts <- threads
         parallel_ ts $
-            makeFork ts start end (fill (index arr) (write tarr))
+            makeFork ts start end (fill (B.index arr) (write tarr))
         touchArray arr
         touchArray tarr
 
@@ -181,7 +181,7 @@ class Load r l tr tl sh a => RangeLoad r l tr tl sh a where
     rangeLoadS fill arr tarr start end = do
         force arr
         force tarr
-        fill (index arr) (write tarr) start end
+        fill (B.index arr) (write tarr) start end
         touchArray arr
         touchArray tarr
 
@@ -294,7 +294,7 @@ class (VecLoad r slr l tr tslr tl sh v v2 e, RangeLoad slr l tslr tl sh e) =>
             makeForkSlicesOnce
                 ts (V.replicate (start, end))
                 (V.zipWith
-                    (\sl tsl -> fill (index sl) (write tsl))
+                    (\sl tsl -> fill (B.index sl) (write tsl))
                     (slices arr) (slices tarr))
         touchArray arr
         touchArray tarr

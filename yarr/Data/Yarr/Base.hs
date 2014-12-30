@@ -29,7 +29,7 @@ import Prelude as P
 import Control.DeepSeq
 
 import Data.Yarr.Shape as S
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector as V hiding ( index )
 
 import Data.Yarr.Utils.Primitive
 

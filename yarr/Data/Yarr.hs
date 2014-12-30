@@ -166,7 +166,7 @@ module Data.Yarr (
     Dim1, Dim2, Dim3,
 
     -- ** Fixed Vector
-    Fun(..), Vector(..), VecList(VecList),
+    Fun(..), Vector(..), -- VecList(VecList),
     N1, N2, N3, N4,
 
 

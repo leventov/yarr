@@ -25,7 +25,8 @@ import Data.Yarr.Shape
 import Data.Yarr.Fusion
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector as V hiding ( index, traverse )
+import Data.Vector.Fixed.Cont ( Fn )
 
 -- | /O(1)/ Function from @repa@.
 traverse

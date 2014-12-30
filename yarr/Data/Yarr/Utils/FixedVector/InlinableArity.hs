@@ -4,7 +4,7 @@ module Data.Yarr.Utils.FixedVector.InlinableArity where
 import Language.Haskell.TH hiding (Arity)
 
 import Data.Vector.Fixed (Dim(..), Arity(..), Fun(..), Vector(..), (!), VecList(..), convert)
-import Data.Vector.Fixed.Internal (arity)
+import Data.Vector.Fixed.Mutable ( arity )
 
 -- | Workaround for slice-wise currined filling functions inlining issues.
 -- See comment to 'Data.Yarr.Convolution.CVL' for details.
@@ -36,7 +36,7 @@ makeInlinableArityInstance arityType a = do
         bs = varE bsN
 
         construct' vs =
-            [| convert $ VecList $(listE vs) |]
+            [| convert $(foldr (\x xs -> [|Cons|] `appE` x `appE` xs) [|Nil|] vs) |]
 
         zipF = funD'
             'inlinableZipWith

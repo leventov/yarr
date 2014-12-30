@@ -21,7 +21,7 @@ import Data.Yarr.Base
 import Data.Yarr.Shape
 import Data.Yarr.Repr.Delayed
 import Data.Yarr.Convolution.Repr
-import Data.Yarr.Utils.FixedVector as V
+import Data.Yarr.Utils.FixedVector as V hiding ( index )
 import Data.Yarr.Utils.Primitive
 
 -- | Generalized static 'Dim1' stencil.
@@ -61,7 +61,7 @@ parseDim1Stencil s =
         size = P.length values    
         sizeType = P.foldr appT [t|Z|] (P.replicate size [t|S|])
         sz = [| undefined :: $sizeType |]
-        vecList = [| VecList |] `appE` (listE (P.map justNonZero values))
+        vecList = (P.foldr (\x xs -> [|Cons|] `appE` x `appE` xs) [|Nil|]) (P.map justNonZero values)
     in [| Dim1Stencil $sz $vecList (\acc a reduce -> reduce acc a) (return 0) |]
 
 
@@ -123,10 +123,9 @@ parseDim2Stencil s =
         sizeTypeY = P.foldr appT [t|Z|] (P.replicate sizeY [t|S|])
         sy = [| undefined :: $sizeTypeY |]
 
-        vl = [| VecList |]
         innerLists =
-            P.map (\vs -> vl `appE` (listE (P.map justNonZero vs))) values
-        outerList = vl `appE` (listE innerLists)
+            P.map (\vs -> (P.foldr (\x xs -> [|Cons|] `appE` x `appE` xs) [|Nil|]) (P.map justNonZero vs)) values
+        outerList =(P.foldr (\x xs -> [|Cons|] `appE` x `appE` xs) [|Nil|]) innerLists
 
     in [| Dim2Stencil $sx $sy $outerList (\acc a reduce -> reduce acc a) (return 0) |]
 
