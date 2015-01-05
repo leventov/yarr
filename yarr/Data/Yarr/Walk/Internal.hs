@@ -148,4 +148,4 @@ anyRangeWalkSlicesSeparateP threads fold mz join arr start end = do
 
     let rsBySlices = P.map (P.map snd) $ groupBy ((==) `on` fst) $ P.concat trs
     rs <- M.mapM (\(r:rs) -> M.foldM join r rs) rsBySlices
-    return undefined -- (P.foldr Cons Nil rs)
+    return (fromList' rs)
