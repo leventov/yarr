@@ -171,7 +171,7 @@ supress !threshHigh magOrient = do
     supressed <- newEmpty ext
 
     let mags = V.head (slices magOrient)
-        mg = index mags
+        mg = Y.index mags
 
         {-# INLINE isMax #-}
         isMax sh m m1 m2 = do
@@ -213,7 +213,7 @@ wildfire edges target = do
 
         {-# INLINE stackIndex #-}
         stackIndex stack i = do
-            ix16 <- index stack i
+            ix16 <- Y.index stack i
             let (VT_2 ix) = V.map fromIntegral ix16
             return ix
 
@@ -223,7 +223,7 @@ wildfire edges target = do
 
         {-# INLINE pushWeak #-}
         pushWeak stack ix top = do
-            edge <- index edges ix
+            edge <- Y.index edges ix
             if edge == noEdge
                 then return top
                 else do
