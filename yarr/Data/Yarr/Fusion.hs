@@ -1,3 +1,10 @@
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE UndecidableInstances   #-}
+
 -- | Fusion type system. Use re-exported in "Data.Yarr.Flow" functions.
 module Data.Yarr.Fusion where
 

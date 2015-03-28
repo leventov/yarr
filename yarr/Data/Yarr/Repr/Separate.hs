@@ -1,3 +1,9 @@
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE UndecidableInstances  #-}
 
 module Data.Yarr.Repr.Separate (
     -- * @Separate@ representation

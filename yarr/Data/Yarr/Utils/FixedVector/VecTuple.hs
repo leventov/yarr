@@ -1,3 +1,5 @@
+{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE TypeFamilies    #-}
 
 module Data.Yarr.Utils.FixedVector.VecTuple (
     VecTuple(..), makeVecTupleInstance

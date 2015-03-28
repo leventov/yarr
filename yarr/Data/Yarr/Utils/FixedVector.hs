@@ -5,13 +5,17 @@
 {-# OPTIONS_GHC -fno-warn-missing-methods #-}
 {-# OPTIONS_GHC -fno-warn-orphans         #-}
 
+{-# LANGUAGE RankNTypes                   #-}
+{-# LANGUAGE ScopedTypeVariables          #-}
+{-# LANGUAGE FlexibleContexts             #-}
+
 module Data.Yarr.Utils.FixedVector (
     -- * Fixed Vector  
     module Data.Vector.Fixed,
     arity,
     
     -- * Missed utility
-    zipWith3, zipWithM_, apply, zero,
+    apply, zero,
     iifoldl, iifoldM,
 
     -- * Aliases and shortcuts
@@ -36,8 +40,6 @@ module Data.Yarr.Utils.FixedVector (
 import Prelude hiding (
     foldl, zipWith, zipWith3,
     all, any, sequence_, replicate)
-
-import Control.DeepSeq
 
 import Data.Vector.Fixed
 import Data.Vector.Fixed.Cont ( accum, arity )
@@ -65,26 +67,6 @@ vl_3 a b c = a `Cons` (b `Cons` (c `Cons` Nil))
 vl_4 :: a -> a -> a -> a -> VecList N4 a
 {-# INLINE vl_4 #-}
 vl_4 a b c d = a `Cons` (b `Cons` (c `Cons` (d `Cons` Nil)))
-
-
-instance (Arity n, NFData e) => NFData (VecList n e) where
-    rnf = Data.Vector.Fixed.foldl (\r e -> r `seq` rnf e) ()
-    {-# INLINE rnf #-}
-
-    
-zipWith3
-  :: (Vector v a, Vector v b, Vector v c, Vector v d, Vector v (b, c))
-  => (a -> b -> c -> d)
-  -> v a -> v b -> v c
-  -> v d
-{-# INLINE zipWith3 #-}
-zipWith3 f v1 v2 v3 = zipWith (\a (b, c) -> f a b c) v1 (zipWith (,) v2 v3)
-
-zipWithM_
-  :: (Vector v a, Vector v b, Vector v c, Monad m, Vector v (m c))
-  => (a -> b -> m c) -> v a -> v b -> m ()
-{-# INLINE zipWithM_ #-}
-zipWithM_ f xs ys = sequence_ (zipWith f xs ys)
 
 
 apply :: (Vector v a, Vector v (a -> b), Vector v b)

@@ -1,4 +1,15 @@
-{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE InstanceSigs           #-}
+{-# LANGUAGE RankNTypes             #-}
+{-# LANGUAGE ScopedTypeVariables    #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeSynonymInstances   #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE MagicHash              #-}
+{-# LANGUAGE UnboxedTuples          #-}
+{-# LANGUAGE BangPatterns           #-}
 
 module Data.Yarr.Shape (
     -- * Flow types hierarchy

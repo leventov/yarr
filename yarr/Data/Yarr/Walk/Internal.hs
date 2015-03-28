@@ -1,3 +1,6 @@
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Data.Yarr.Walk.Internal where
 

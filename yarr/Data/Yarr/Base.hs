@@ -1,3 +1,9 @@
+{-# LANGUAGE CPP                    #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE FlexibleInstances      #-}
 
 -- | Core type system
 module Data.Yarr.Base (

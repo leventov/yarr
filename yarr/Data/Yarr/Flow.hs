@@ -1,3 +1,4 @@
+{-# LANGUAGE FlexibleContexts      #-}
 
 -- | Dataflow (fusion operations)
 module Data.Yarr.Flow (

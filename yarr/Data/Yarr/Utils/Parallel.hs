@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 
 module Data.Yarr.Utils.Parallel where
 

@@ -1,3 +1,7 @@
+{-# LANGUAGE FlexibleInstances        #-}
+{-# LANGUAGE UndecidableInstances     #-}
+{-# LANGUAGE MagicHash, UnboxedTuples #-}
+{-# LANGUAGE CPP                      #-}
 
 module Data.Yarr.Utils.Primitive where
 

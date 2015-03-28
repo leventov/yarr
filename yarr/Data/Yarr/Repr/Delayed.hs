@@ -1,3 +1,8 @@
+{-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE OverlappingInstances  #-}
 
 module Data.Yarr.Repr.Delayed (
     -- * Delayed source
