@@ -31,7 +31,6 @@ import Data.Yarr.Repr.Delayed
 import Data.Yarr.Repr.Separate
 import Data.Yarr.Shape
 
-import Data.Yarr.Utils.Storable
 import Data.Yarr.Utils.FixedVector as V
 
 -- | Foreign representation is the heart of Yarr framework.
@@ -132,7 +131,7 @@ instance DefaultFusion FS D L sh
 instance Shape sh => DefaultIFusion FS L D SH sh
 
 
-instance (Shape sh, Vector v e, Storable e) => VecRegular F FS L sh v e where
+instance (Shape sh, Vector v e, Storable e, Storable (v e)) => VecRegular F FS L sh v e where
     slices (ForeignArray sh fptr ptr) =
         let esize = sizeOf (undefined :: e)
             vsize = sizeOf (undefined :: (v e))
@@ -142,7 +141,7 @@ instance (Shape sh, Vector v e, Storable e) => VecRegular F FS L sh v e where
             ForeignSlice sh vsize feptr (eptr `plusPtr` (i * esize))
     {-# INLINE slices #-}
 
-instance (Shape sh, Vector v e, Storable e) => UVecSource F FS L sh v e
+instance (Shape sh, Vector v e, Storable e, Storable (v e)) => UVecSource F FS L sh v e
 
 instance (Shape sh, Vector v e, Storable e) => UVecSource (SE F) F L sh v e
 
@@ -190,7 +189,8 @@ instance (Shape sh, Storable e) => UTarget FS L sh e where
         pokeByteOff ptr (i * vsize) x
     {-# INLINE linearWrite #-}
 
-instance (Shape sh, Vector v e, Storable e) => UVecTarget F FS L sh v e
+instance (Shape sh, Vector v e, Storable e, Storable (v e)) =>
+         UVecTarget F FS L sh v e
 
 -- | /O(1)/ Returns pointer to memory block used by the given foreign
 -- array.

@@ -1,8 +1,8 @@
 {-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE MagicHash           #-}
-{-# UnboxedTuples                #-}
-{-# BangPatterns                 #-}
+{-# LANGUAGE UnboxedTuples       #-}
+{-# LANGUAGE BangPatterns        #-}
 
 module Data.Yarr.Utils.LowLevelFlow where
 
