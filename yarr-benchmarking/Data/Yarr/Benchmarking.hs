@@ -1,3 +1,4 @@
+{-# LANGUAGE TypeFamilies #-}
 
 module Data.Yarr.Benchmarking where
 

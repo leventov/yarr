@@ -1,6 +1,7 @@
 {-# LANGUAGE RankNTypes             #-}
 {-# LANGUAGE ScopedTypeVariables    #-}
 {-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE FlexibleContexts       #-}
 {-# LANGUAGE MultiParamTypeClasses  #-}
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE TypeFamilies           #-}
