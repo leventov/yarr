@@ -14,7 +14,7 @@ module Data.Yarr.Flow (
     dzipElems, dzipElemsM,
 
     -- * High level shortcuts
-    traverse, zipElems, mapElems, mapElemsM,
+    Data.Yarr.Flow.traverse, zipElems, mapElems, mapElemsM,
 
     -- ** Cartesian products
     cartProduct2, icartProduct2, icartProduct2M,
