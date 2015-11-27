@@ -22,8 +22,8 @@ source-repository head
 
 Library
     build-depends:
-        base >= 4.6 && <4.8,
-        yarr == 1.3.*,
+        base >= 4.6 && <4.9,
+        yarr >= 1.3,
         old-time == 1.1.*,
         rdtsc == 1.3.*
 

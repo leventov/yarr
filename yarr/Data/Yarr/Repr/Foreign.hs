@@ -24,7 +24,7 @@ module Data.Yarr.Repr.Foreign (
 import Foreign
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc
-import Foreign.Marshal.MissingAlloc
+import Foreign.Marshal.MissingAlloc as FMMA
 
 import Data.Yarr.Base as B
 import Data.Yarr.Fusion
@@ -170,7 +170,7 @@ instance (Shape sh, Storable a) => Manifest F F L sh a where
 newEmpty :: (Shape sh, Storable a, Integral a) => sh -> IO (UArray F L sh a)
 {-# INLINE newEmpty #-}
 newEmpty sh = do
-    arr <- internalNew callocBytes sh
+    arr <- internalNew FMMA.callocBytes sh
     arr `deepseq` return ()
     return arr
 
