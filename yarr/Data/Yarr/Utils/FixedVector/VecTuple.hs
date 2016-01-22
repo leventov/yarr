@@ -17,6 +17,14 @@ funD' name cs =
         inline = pragInlD name Inline ConLike AllPhases
     in [fd, inline]
 
+#if MIN_VERSION_template_haskell(2,11,0)
+newtypeInstD' ctxt tc tys con derivs =
+    let kindSig = Nothing
+    in newtypeInstD ctxt tc tys kindSig con (cxt derivs)
+#else
+newtypeInstD' = newtypeInstD
+#endif
+
 makeVecTupleInstance arityType a = do
 
     let n = arity a
@@ -30,7 +38,7 @@ makeVecTupleInstance arityType a = do
         tupleType = foldl appT (tupleT n) $ replicate n e
 
     familyInst <-
-        newtypeInstD
+        newtypeInstD'
             (cxt [])
             ''VecTuple
             [arityType, e]
