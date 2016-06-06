@@ -10,3 +10,4 @@
   request.
 * Changes in 1.4.0.0: This works (and will only work) with the
   breaking change release of fixed-vector 0.8.0.0.
+* Changes in 1.4.0.2: Build with GHC 7.10 and 8.0.
