@@ -50,6 +50,7 @@ import Data.Yarr.Utils.FixedVector.VecTuple
 import Data.Yarr.Utils.FixedVector.VecTupleInstances
 
 import Data.Yarr.Utils.FixedVector.InlinableArity
+import Data.Yarr.Utils.FixedVector.InlinableArityInstances
 
 
 vl_1 :: a -> VecList N1 a
