@@ -17,7 +17,11 @@ funD' name cs =
         inline = pragInlD name Inline ConLike AllPhases
     in [fd, inline]
 
-#if MIN_VERSION_template_haskell(2,11,0)
+#if MIN_VERSION_template_haskell(2,12,0)
+newtypeInstD' ctxt tc tys con derivs =
+    let kindSig = Nothing
+    in newtypeInstD ctxt tc tys kindSig con derivs
+#elif MIN_VERSION_template_haskell(2,11,0)
 newtypeInstD' ctxt tc tys con derivs =
     let kindSig = Nothing
     in newtypeInstD ctxt tc tys kindSig con (cxt derivs)
